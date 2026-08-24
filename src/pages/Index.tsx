@@ -211,8 +211,6 @@ const Index = () => {
           </div>
         </ScrollReveal>
 
-        {!isLoading && <TopBestUsernames usernames={usernames} discordLink={discordLink} />}
-
         <ScrollReveal className="mb-8">
           <div className="flex flex-wrap justify-center gap-3">
           {categories.map(category => (
