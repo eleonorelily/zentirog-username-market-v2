@@ -24,6 +24,7 @@ service cloud.firestore {
         'isNew',
         'isHot',
         'isSold',
+        'isBest4',
         'priority',
         'public',
         'createdAt',
@@ -56,8 +57,14 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    match /settings/{settingId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }
   }
 }
+
