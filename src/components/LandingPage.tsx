@@ -3,11 +3,14 @@ import { Button } from './ui/button';
 import DragonScene from './DragonScene';
 import ParticleEffect from './ParticleEffect';
 import ScrollReveal from './ScrollReveal';
+import { TopBestUsernames } from './TopBestUsernames';
 import { useDiscordLink } from '@/hooks/useDiscordLink';
+import type { Username } from '@/types/username';
 
 interface LandingPageProps {
   onViewAll: () => void;
   onLoadProgressive: () => void;
+  usernames?: Username[];
 }
 
 const proofPoints = [
@@ -16,7 +19,7 @@ const proofPoints = [
   { icon: Flame, label: 'Rare short stock', value: '3L, 4L, semi' },
 ];
 
-const LandingPage = ({ onViewAll, onLoadProgressive }: LandingPageProps) => {
+const LandingPage = ({ onViewAll, onLoadProgressive, usernames = [] }: LandingPageProps) => {
   const discordLink = useDiscordLink();
 
   return (
@@ -98,6 +101,12 @@ const LandingPage = ({ onViewAll, onLoadProgressive }: LandingPageProps) => {
             );
           })}
         </div>
+
+        {usernames.length > 0 && (
+          <div className="mt-12">
+            <TopBestUsernames usernames={usernames} discordLink={discordLink} />
+          </div>
+        )}
       </section>
 
       <section className="relative px-5 pb-20 md:px-10 lg:px-14">

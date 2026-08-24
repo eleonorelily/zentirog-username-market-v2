@@ -157,7 +157,7 @@ const Index = () => {
   };
 
   if (showLanding) {
-    return <LandingPage onViewAll={handleViewAll} onLoadProgressive={handleLoadProgressive} />;
+    return <LandingPage usernames={usernames} onViewAll={handleViewAll} onLoadProgressive={handleLoadProgressive} />;
   }
 
   if (error) {
