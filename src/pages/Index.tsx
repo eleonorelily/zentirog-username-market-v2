@@ -250,7 +250,7 @@ const Index = () => {
 
         {!isLoading && (
           <>
-            <div className="grid auto-rows-fr grid-cols-1 gap-5 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+            <div className="grid auto-rows-fr grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {displayUsernames.map((username, index) => (
                 <ScrollReveal key={`${username.username}-${index}`} delay={Math.min(index * 35, 280)} className="h-full">
                   <UsernameCard 

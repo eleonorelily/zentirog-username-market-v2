@@ -31,11 +31,11 @@ const UsernameCard = ({
   const activeDiscordLink = discordLink || fallbackLink;
 
   const usernameFontSize =
-    username.length > 20 ? '0.82rem' :
-    username.length > 18 ? '0.98rem' :
-    username.length > 15 ? '1.12rem' :
-    username.length > 12 ? '1.30rem' :
-    '1.55rem';
+    username.length > 22 ? '0.78rem' :
+    username.length > 18 ? '0.88rem' :
+    username.length > 14 ? '1.02rem' :
+    username.length > 11 ? '1.18rem' :
+    '1.45rem';
 
   const parsePrice = (priceString: string) => {
     if (priceString === 'SOLD') {
@@ -80,7 +80,7 @@ const UsernameCard = ({
     >
       <div
         className={`
-          username-card relative flex-1 min-h-[380px] overflow-hidden rounded-2xl border p-5
+          username-card relative flex-1 min-h-[390px] overflow-hidden rounded-2xl border p-6
           flex flex-col transition-all duration-300 ease-out
           ${isHovered ? '-translate-y-1.5 shadow-[0_20px_50px_rgba(239,68,68,0.3)]' : ''}
           ${isBest4 ? 'border-amber-400/40 bg-gradient-to-b from-amber-950/20 via-black/40 to-black/60 shadow-[0_0_30px_rgba(245,158,11,0.12)]' : ''}
@@ -119,7 +119,7 @@ const UsernameCard = ({
         <div className="mb-4">
           <div className="flex items-center justify-between gap-2">
             <h3
-              className={`max-w-full font-black leading-tight tracking-normal transition-colors break-all ${
+              className={`max-w-full font-black leading-tight tracking-normal transition-colors whitespace-nowrap overflow-hidden text-ellipsis ${
                 isSold ? 'text-white/45 line-through' : isBest4 ? 'text-amber-100 group-hover:text-amber-300' : 'text-white group-hover:text-red-100'
               }`}
               style={{ fontSize: usernameFontSize }}

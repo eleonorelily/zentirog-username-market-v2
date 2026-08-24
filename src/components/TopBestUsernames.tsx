@@ -105,7 +105,13 @@ export const TopBestUsernames = ({ usernames, discordLink }: TopBestUsernamesPro
                 <div className="mb-4">
                   <div className="flex items-center justify-between gap-2">
                     <h3
-                      className="font-black text-2xl text-white tracking-tight break-all group-hover:text-amber-200 transition-colors"
+                      className="font-black text-white tracking-tight whitespace-nowrap overflow-hidden text-ellipsis group-hover:text-amber-200 transition-colors"
+                      style={{
+                        fontSize:
+                          item.username.length > 20 ? '0.9rem' :
+                          item.username.length > 15 ? '1.1rem' :
+                          item.username.length > 12 ? '1.25rem' : '1.5rem'
+                      }}
                       title={item.username}
                     >
                       {item.username}
