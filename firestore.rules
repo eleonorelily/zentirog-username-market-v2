@@ -1,0 +1,63 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return signedIn()
+        && (
+          request.auth.uid == 'nddx1x2m1dTp9ZgfBJkvzcVy1SE3'
+          || request.auth.token.email == 'zormogo@gmail.com'
+          || exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+        );
+    }
+
+    function usernameShape(data) {
+      return data.keys().hasOnly([
+        'username',
+        'price',
+        'description',
+        'category',
+        'isNew',
+        'isHot',
+        'isSold',
+        'priority',
+        'public',
+        'createdAt',
+        'updatedAt',
+        'createdAtServer',
+        'updatedAtServer'
+      ])
+      && data.username is string
+      && data.username.matches('^@[A-Za-z0-9_.]{1,32}$')
+      && data.price is string
+      && data.description is string
+      && data.category is string
+      && data.isNew is bool
+      && data.isHot is bool
+      && data.isSold is bool
+      && data.public is bool
+      && data.priority in ['none', 'high', 'mid', 'low'];
+    }
+
+    match /admins/{uid} {
+      allow read: if isAdmin() && request.auth.uid == uid;
+      allow write: if false;
+    }
+
+    match /usernames/{usernameId} {
+      allow list: if isAdmin() || resource.data.public == true;
+      allow get: if isAdmin() || resource.data.public == true;
+      allow create: if isAdmin();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
