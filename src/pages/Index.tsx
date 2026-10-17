@@ -285,23 +285,23 @@ const Index = () => {
         <div className="border border-[#1f2127] bg-[#0c0d10] p-6 sm:p-8">
           <div className="max-w-3xl">
             <div className="text-[10px] font-mono tracking-widest uppercase text-[#d4af37] mb-2">
-              Purchase Protection Protocol
+              Buyer Policy & Security Terms
             </div>
             <h2 className="text-lg sm:text-xl font-display font-bold uppercase tracking-wider text-white">
-              Direct & Verifiable Discord Acquisition
+              Account Transfer & Security Policy
             </h2>
             <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4 text-xs font-sans text-neutral-400">
               <div className="border-t border-[#1f2127] pt-3">
-                <span className="font-mono text-neutral-300 font-bold block mb-1">01 / Reserve Handle</span>
-                Confirm availability directly through our official Discord desk by referencing the target handle.
+                <span className="font-mono text-neutral-300 font-bold block mb-1">01 / Pre-Claimed Account</span>
+                You are purchasing full access to a Discord account with the target username already claimed on it.
               </div>
               <div className="border-t border-[#1f2127] pt-3">
-                <span className="font-mono text-neutral-300 font-bold block mb-1">02 / Verified Escrow</span>
-                Payment is locked before any credential change or migration instructions take effect.
+                <span className="font-mono text-[#d4af37] font-bold block mb-1">02 / Secure Immediately</span>
+                Upon delivery, you must immediately change the email, password, and enable 2-Factor Authentication (2FA).
               </div>
               <div className="border-t border-[#1f2127] pt-3">
-                <span className="font-mono text-neutral-300 font-bold block mb-1">03 / Immediate Ownership</span>
-                Receive complete ownership and binding confirmation with step-by-step guidance.
+                <span className="font-mono text-neutral-300 font-bold block mb-1">03 / Buyer Responsibility</span>
+                Once credentials are provided and sale is completed, all security and liability rests on the buyer.
               </div>
             </div>
           </div>

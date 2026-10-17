@@ -71,7 +71,7 @@ export const HandleDetailModal: React.FC<HandleDetailModalProps> = ({
                 {username.category || 'General Handle'}
               </div>
               <h2 id="handle-detail-title" className="text-3xl sm:text-4xl font-mono font-bold tracking-tight text-white select-all">
-                @{username.username}
+                {username.username.startsWith('@') ? username.username : `@${username.username}`}
               </h2>
             </div>
             <button
@@ -89,19 +89,19 @@ export const HandleDetailModal: React.FC<HandleDetailModalProps> = ({
             </div>
             <div className="flex items-center gap-3 bg-[#16181f] p-3 border border-[#202229]">
               <div className="w-10 h-10 bg-[#252834] border border-[#333745] flex items-center justify-center text-xs font-mono font-bold text-neutral-300">
-                {username.username.slice(0, 2).toUpperCase()}
+                {username.username.replace(/^@+/, '').slice(0, 2).toUpperCase()}
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
                   <span className="font-sans font-bold text-sm text-white truncate">
-                    {username.username}
+                    {username.username.replace(/^@+/, '')}
                   </span>
                   <span className="text-[9px] font-mono bg-[#282b37] text-neutral-400 px-1.5 py-0.2 border border-[#373b4b]">
-                    HANDLE
+                    ACCOUNT
                   </span>
                 </div>
                 <div className="text-xs font-mono text-neutral-400">
-                  @{username.username}
+                  {username.username.startsWith('@') ? username.username : `@${username.username}`}
                 </div>
               </div>
             </div>
@@ -146,17 +146,17 @@ export const HandleDetailModal: React.FC<HandleDetailModalProps> = ({
 
           {/* Acquisition & Safety Protocol */}
           <div className="border border-[#20222a] bg-[#0d0e12] p-3 text-xs text-neutral-400 space-y-1.5 font-sans">
-            <div className="font-mono text-[10px] uppercase tracking-wider text-neutral-300">
-              Escrow & Claim Protocol
+            <div className="font-mono text-[10px] uppercase tracking-wider text-[#d4af37]">
+              Account Delivery & Buyer Security Protocol
             </div>
             <p>
-              1. Tap "Inquire via Discord" to connect with the authorized desk.
+              1. All listings are sold as full Discord accounts with the handle already claimed.
             </p>
             <p>
-              2. Quote handle <span className="font-mono text-white">@{username.username}</span> to reserve.
+              2. Upon delivery, you must immediately secure the account: update email, change password, and enable 2FA.
             </p>
-            <p>
-              3. Verified handoff via direct transfer instructions.
+            <p className="text-neutral-300 font-mono text-[11px]">
+              * Buyer assumes full responsibility for account security once credentials are handed over.
             </p>
           </div>
         </div>

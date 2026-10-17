@@ -72,30 +72,43 @@ export const LegalModal: React.FC<LegalModalProps> = ({
               </div>
 
               <div className="space-y-4">
-                <section>
-                  <h4 className="text-xs font-mono uppercase tracking-wider text-[#d4af37] mb-1">
-                    1. Scope and Escrow Policy
+                <section className="border border-[#382d1c] bg-[#1a150d] p-3">
+                  <h4 className="text-xs font-mono uppercase tracking-wider text-[#d4af37] mb-1 font-bold">
+                    Important Buyer Notice: Account Sale & Security Responsibility
                   </h4>
-                  <p>
-                    All items listed in the Zentirog Vault represent verified digital identifiers. Inquiries and final handoffs are coordinated via our designated Discord communication line. Transactions require mutual confirmation of payment before account transfer credentials or release protocols are executed.
+                  <p className="text-xs text-neutral-200">
+                    We sell full Discord accounts that already have these rare usernames claimed onto them. Once the account credentials are delivered and the transaction is finalized, complete responsibility for the security of that account transfers entirely to you (the buyer). You must immediately secure the account (change email, change password, enable 2FA, and generate backup codes). We are not responsible or liable for any account loss, locks, bans, unauthorized access, or issues occurring after the sale.
                   </p>
                 </section>
 
                 <section>
                   <h4 className="text-xs font-mono uppercase tracking-wider text-[#d4af37] mb-1">
-                    2. Finality of Transfer
+                    1. Account Delivery & Handoff
                   </h4>
                   <p>
-                    Due to the immutable nature of unique identifier claims on third-party networks, all completed transfers are final. Buyers are granted a 60-minute window upon release to verify handle binding to their designated Discord account.
+                    All items listed in the Zentirog Vault are sold as complete Discord accounts with the specified username pre-claimed. Inquiries and transaction handoffs are conducted directly via Discord. Once payment is confirmed, login credentials for the account holding the handle are provided to the buyer.
                   </p>
                 </section>
 
                 <section>
                   <h4 className="text-xs font-mono uppercase tracking-wider text-[#d4af37] mb-1">
-                    3. Buyer Verification
+                    2. Mandatory Buyer Security Protocol
                   </h4>
                   <p>
-                    Purchasers must possess an active, verified Discord profile. We do not facilitate transactions with unverified intermediaries or unauthorized payment gateways.
+                    Upon receiving account access, the buyer must immediately:
+                    (a) Update the email address to their own private email,
+                    (b) Change the account password to a strong, unique password,
+                    (c) Enable Two-Factor Authentication (2FA) and download backup codes.
+                    Any subsequent account compromises, password loss, or security failures are solely the buyer's responsibility.
+                  </p>
+                </section>
+
+                <section>
+                  <h4 className="text-xs font-mono uppercase tracking-wider text-[#d4af37] mb-1">
+                    3. Finality of Sale & Zero Liability
+                  </h4>
+                  <p>
+                    All sales are strictly final. Once the account information has been transmitted to the purchaser, no refunds, replacements, or chargebacks are provided. Zentirog assumes zero liability for anything that occurs to the account after handoff.
                   </p>
                 </section>
 

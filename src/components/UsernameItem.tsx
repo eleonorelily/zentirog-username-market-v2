@@ -47,7 +47,7 @@ export const UsernameItem: React.FC<UsernameItemProps> = ({
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <span className={`font-mono text-base sm:text-lg font-bold tracking-tight truncate ${isSold ? 'line-through text-neutral-500' : 'text-white group-hover:text-[#d4af37]'}`}>
-                @{item.username}
+                {item.username.startsWith('@') ? item.username : `@${item.username}`}
               </span>
               {item.isBest4 && (
                 <span className="text-[9px] font-mono border border-[#d4af37]/60 text-[#d4af37] px-1 py-0.2 uppercase shrink-0">
@@ -152,7 +152,7 @@ export const UsernameItem: React.FC<UsernameItemProps> = ({
       <div className="my-3 min-w-0">
         <div className="flex items-center justify-between gap-2">
           <h3 className={`font-mono text-xl sm:text-2xl font-bold tracking-tight truncate ${isSold ? 'line-through text-neutral-500' : 'text-white group-hover:text-[#d4af37]'}`}>
-            @{item.username}
+            {item.username.startsWith('@') ? item.username : `@${item.username}`}
           </h3>
           <button
             onClick={handleCopy}
