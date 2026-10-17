@@ -1,55 +1,42 @@
-
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import UsernameCard from '../components/UsernameCard';
-import ParticleEffect from '../components/ParticleEffect';
-import LoadingSpinner from '../components/LoadingSpinner';
-import SortControls from '../components/SortControls';
-import LandingPage from '../components/LandingPage';
-import ScrollReveal from '../components/ScrollReveal';
-import { TopBestUsernames } from '../components/TopBestUsernames';
-import { Button } from '../components/ui/button';
-import { Flame, Gem, MessageCircle, ShieldCheck, Sparkles } from 'lucide-react';
 import { fetchPublishedUsernames } from '@/lib/usernameStore';
 import { useDiscordLink } from '@/hooks/useDiscordLink';
 import type { Username } from '@/types/username';
+import { Navbar } from '@/components/Navbar';
+import { CatalogFilters, type SortType } from '@/components/CatalogFilters';
+import { UsernameItem } from '@/components/UsernameItem';
+import { HandleDetailModal } from '@/components/HandleDetailModal';
+import { LegalModal } from '@/components/LegalModal';
+import { SkeletonLoader } from '@/components/SkeletonLoader';
 
-type SortOption = 'alphabetical-asc' | 'alphabetical-desc' | 'price-asc' | 'price-desc';
-const PAGE_SIZE = 40;
-
-const sortUsernames = (usernames: Username[], sortOption: SortOption): Username[] => {
+const sortUsernames = (usernames: Username[], sortOption: SortType): Username[] => {
   return [...usernames].sort((a, b) => {
-    // For sold items, sort alphabetically or by username since they don't have numeric prices
+    // If both sold, maintain alphabetical
     if (a.isSold && b.isSold) {
-      switch (sortOption) {
-        case 'alphabetical-asc':
-        case 'price-asc':
-          return a.username.localeCompare(b.username);
-        case 'alphabetical-desc':
-        case 'price-desc':
-          return b.username.localeCompare(a.username);
-        default:
-          return 0;
-      }
+      return a.username.localeCompare(b.username);
     }
-    
-    // Regular sorting for non-sold items
+    // Prioritize non-sold over sold
+    if (a.isSold !== b.isSold) {
+      return a.isSold ? 1 : -1;
+    }
+
     switch (sortOption) {
-      case 'alphabetical-asc':
+      case 'alpha-asc':
         return a.username.localeCompare(b.username);
-      case 'alphabetical-desc':
+      case 'alpha-desc':
         return b.username.localeCompare(a.username);
+      case 'length-asc':
+        return a.username.length - b.username.length || a.username.localeCompare(b.username);
       case 'price-asc': {
-        if (a.isSold || b.isSold) return a.username.localeCompare(b.username);
-        const priceA = parseFloat(a.price.replace('$', ''));
-        const priceB = parseFloat(b.price.replace('$', ''));
-        return priceA - priceB;
+        const pA = parseFloat(a.price.replace(/[^0-9.]/g, '')) || 0;
+        const pB = parseFloat(b.price.replace(/[^0-9.]/g, '')) || 0;
+        return pA - pB;
       }
       case 'price-desc': {
-        if (a.isSold || b.isSold) return b.username.localeCompare(a.username);
-        const priceADesc = parseFloat(a.price.replace('$', ''));
-        const priceBDesc = parseFloat(b.price.replace('$', ''));
-        return priceBDesc - priceADesc;
+        const pADesc = parseFloat(a.price.replace(/[^0-9.]/g, '')) || 0;
+        const pBDesc = parseFloat(b.price.replace(/[^0-9.]/g, '')) || 0;
+        return pBDesc - pADesc;
       }
       default:
         return 0;
@@ -58,12 +45,15 @@ const sortUsernames = (usernames: Username[], sortOption: SortOption): Username[
 };
 
 const Index = () => {
-  const [showLanding, setShowLanding] = useState(true);
-  const [progressiveMode, setProgressiveMode] = useState(false);
-  const [loadedCount, setLoadedCount] = useState(PAGE_SIZE);
+  const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
-  const [sortOption, setSortOption] = useState<SortOption>('price-desc');
-  
+  const [sortOption, setSortOption] = useState<SortType>('price-desc');
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [hideSold, setHideSold] = useState(false);
+  const [selectedItem, setSelectedItem] = useState<Username | null>(null);
+  const [legalModalOpen, setLegalModalOpen] = useState(false);
+  const [legalTab, setLegalTab] = useState<'tos' | 'privacy'>('tos');
+
   const discordLink = useDiscordLink();
 
   const { data: usernames = [], isLoading, error } = useQuery({
@@ -75,245 +65,296 @@ const Index = () => {
   const availableUsernames = useMemo(() => usernames.filter(u => !u.isSold), [usernames]);
   const soldUsernames = useMemo(() => usernames.filter(u => u.isSold), [usernames]);
 
-  // Create categories: keep All, New, Hot, length-based (only if present), and Sold
-  const hasNewUsernames = availableUsernames.some(u => u.isNew);
-  const hasHotUsernames = availableUsernames.some(u => u.isHot);
-  const hasSoldUsernames = soldUsernames.length > 0;
+  // Dynamic Category extraction
+  const categories = useMemo(() => {
+    const list = ['All'];
+    if (availableUsernames.some(u => u.isNew)) list.push('New Drops');
+    if (availableUsernames.some(u => u.isHot)) list.push('High Demand');
+    if (availableUsernames.some(u => u.category === '3 letter' || u.username.length === 3)) list.push('3 Letter');
+    if (availableUsernames.some(u => u.category === '4 letter' || u.username.length === 4)) list.push('4 Letter');
+    if (availableUsernames.some(u => u.category === '3 char')) list.push('3 Char');
+    if (availableUsernames.some(u => u.category === 'Semi usernames')) list.push('Semi Handles');
+    if (soldUsernames.length > 0) list.push('Sold Archives');
+    return list;
+  }, [availableUsernames, soldUsernames]);
 
-  const has3Letter = availableUsernames.some(u => u.category === '3 letter');
-  const has4Letter = availableUsernames.some(u => u.category === '4 letter');
-  const has3Char = availableUsernames.some(u => u.category === '3 char');
-  const hasSemi = availableUsernames.some(u => u.category === 'Semi usernames');
-  
-  const categories = ['All'] as string[];
-  if (hasNewUsernames) categories.push('New');
-  if (hasHotUsernames) categories.push('Hot');
-  if (has3Letter) categories.push('3 letter');
-  if (has4Letter) categories.push('4 letter');
-  if (has3Char) categories.push('3 char');
-  if (hasSemi) categories.push('Semi usernames');
-  if (hasSoldUsernames) categories.push('Sold');
-  
-  // Filter usernames based on selected category
-  let filteredUsernames;
-  if (selectedCategory === 'All') {
-    filteredUsernames = availableUsernames;
-  } else if (selectedCategory === 'New') {
-    filteredUsernames = availableUsernames.filter(u => u.isNew);
-  } else if (selectedCategory === 'Hot') {
-    filteredUsernames = availableUsernames.filter(u => u.isHot);
-  } else if (selectedCategory === 'Sold') {
-    filteredUsernames = soldUsernames;
-  } else if (['3 letter', '4 letter', '3 char', 'Semi usernames'].includes(selectedCategory)) {
-    filteredUsernames = availableUsernames.filter(u => u.category === selectedCategory);
-  } else {
-    filteredUsernames = availableUsernames;
-  }
+  // Counts for filters
+  const categoryCounts = useMemo(() => {
+    const counts: Record<string, number> = {
+      All: usernames.length,
+      'New Drops': availableUsernames.filter(u => u.isNew).length,
+      'High Demand': availableUsernames.filter(u => u.isHot).length,
+      '3 Letter': availableUsernames.filter(u => u.category === '3 letter' || u.username.length === 3).length,
+      '4 Letter': availableUsernames.filter(u => u.category === '4 letter' || u.username.length === 4).length,
+      '3 Char': availableUsernames.filter(u => u.category === '3 char').length,
+      'Semi Handles': availableUsernames.filter(u => u.category === 'Semi usernames').length,
+      'Sold Archives': soldUsernames.length,
+    };
+    return counts;
+  }, [usernames, availableUsernames, soldUsernames]);
 
-  // Apply sorting
-  const sortedUsernames = useMemo(
-    () => sortUsernames(filteredUsernames, sortOption),
-    [filteredUsernames, sortOption]
-  );
+  // Filtering pipeline
+  const filteredUsernames = useMemo(() => {
+    let list = usernames;
 
-  // Progressive loading logic
-  const getPriorityOrder = (usernames: Username[]) => {
-    const high = usernames.filter(u => u.priority === 'high');
-    const mid = usernames.filter(u => u.priority === 'mid');
-    const low = usernames.filter(u => u.priority === 'low');
-    const none = usernames.filter(u => u.priority === 'none');
-    return [...high, ...mid, ...low, ...none];
+    // Hide sold if toggled
+    if (hideSold) {
+      list = list.filter(u => !u.isSold);
+    }
+
+    // Category filter
+    if (selectedCategory === 'New Drops') {
+      list = list.filter(u => u.isNew && !u.isSold);
+    } else if (selectedCategory === 'High Demand') {
+      list = list.filter(u => u.isHot && !u.isSold);
+    } else if (selectedCategory === '3 Letter') {
+      list = list.filter(u => (u.category === '3 letter' || u.username.length === 3) && !u.isSold);
+    } else if (selectedCategory === '4 Letter') {
+      list = list.filter(u => (u.category === '4 letter' || u.username.length === 4) && !u.isSold);
+    } else if (selectedCategory === '3 Char') {
+      list = list.filter(u => u.category === '3 char' && !u.isSold);
+    } else if (selectedCategory === 'Semi Handles') {
+      list = list.filter(u => u.category === 'Semi usernames' && !u.isSold);
+    } else if (selectedCategory === 'Sold Archives') {
+      list = list.filter(u => u.isSold);
+    }
+
+    // Search query
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase();
+      // Special length query: e.g. "3l" or "4c"
+      const lengthMatch = q.match(/^(\d+)(?:l|c|char|letter)?$/);
+      if (lengthMatch) {
+        const targetLen = parseInt(lengthMatch[1], 10);
+        list = list.filter(u => u.username.length === targetLen);
+      } else {
+        list = list.filter(
+          u =>
+            u.username.toLowerCase().includes(q) ||
+            u.description.toLowerCase().includes(q) ||
+            u.category.toLowerCase().includes(q)
+        );
+      }
+    }
+
+    return list;
+  }, [usernames, hideSold, selectedCategory, searchQuery]);
+
+  const sortedList = useMemo(() => {
+    return sortUsernames(filteredUsernames, sortOption);
+  }, [filteredUsernames, sortOption]);
+
+  const handleOpenLegal = (tab: 'tos' | 'privacy') => {
+    setLegalTab(tab);
+    setLegalModalOpen(true);
   };
-
-  const orderedUsernames = useMemo(
-    () => (progressiveMode ? getPriorityOrder(sortedUsernames) : sortedUsernames),
-    [progressiveMode, sortedUsernames]
-  );
-
-  const displayUsernames = progressiveMode
-    ? orderedUsernames.slice(0, loadedCount)
-    : orderedUsernames;
-
-  const hasMoreToLoad = progressiveMode && loadedCount < orderedUsernames.length;
-
-  useEffect(() => {
-    setLoadedCount(progressiveMode ? 7 : PAGE_SIZE);
-  }, [selectedCategory, sortOption, progressiveMode]);
-
-  const handleLoadMore = () => {
-    setLoadedCount(prev => Math.min(prev + PAGE_SIZE, orderedUsernames.length));
-  };
-
-  const handleViewAll = () => {
-    setShowLanding(false);
-    setProgressiveMode(false);
-    setLoadedCount(Number.MAX_SAFE_INTEGER);
-  };
-
-  const handleLoadProgressive = () => {
-    setShowLanding(false);
-    setProgressiveMode(true);
-    setLoadedCount(7);
-  };
-
-  if (showLanding) {
-    return <LandingPage usernames={usernames} onViewAll={handleViewAll} onLoadProgressive={handleLoadProgressive} />;
-  }
-
-  if (error) {
-    return (
-      <div className="dragon-page min-h-screen flex items-center justify-center relative overflow-hidden px-5">
-        <ParticleEffect />
-        <div className="relative z-10 max-w-xl rounded-2xl border border-red-400/30 bg-black/60 p-8 text-center text-white shadow-[0_0_60px_rgba(220,38,38,0.22)] backdrop-blur">
-          <h1 className="text-4xl font-black mb-4">Vault feed is cooling down</h1>
-          <p className="text-lg text-red-50/75">
-            Firestore is blocking the live stock feed. Publish the latest Firebase rules, then import or add usernames in the admin panel.
-          </p>
-        </div>
-      </div>
-    );
-  }
 
   return (
-    <div className="dragon-page min-h-screen relative overflow-hidden text-white">
-      <div className="dragon-grid fixed inset-0" />
-      <ParticleEffect />
-      
-      <div className="relative z-10 mx-auto max-w-7xl px-5 py-8 md:px-10 lg:px-14">
-        <ScrollReveal className="mb-10 rounded-[2rem] border border-red-500/20 bg-black/35 p-6 shadow-[0_0_80px_rgba(127,29,29,0.24)] backdrop-blur md:p-10">
-          <div className="grid gap-8 lg:grid-cols-[1.15fr_0.85fr] lg:items-end">
+    <div className="min-h-screen bg-[#090a0d] text-[#eaebee] flex flex-col font-sans">
+      {/* Navigation */}
+      <Navbar
+        totalCount={usernames.length}
+        availableCount={availableUsernames.length}
+        discordLink={discordLink}
+        onOpenLegal={handleOpenLegal}
+      />
+
+      {/* Main Container */}
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-8">
+        {/* Marketplace Banner / Value Overview */}
+        <div className="border border-[#1f2127] bg-[#0d0e12] p-5 sm:p-8">
+          <div className="grid grid-cols-1 lg:grid-cols-[1.5fr_1fr] gap-6 items-end">
             <div>
-              <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-red-400/30 bg-red-950/40 px-4 py-2 text-sm font-bold text-red-100">
-                <Gem className="h-4 w-4 text-red-300" aria-hidden="true" />
-                Live premium stock
+              <div className="flex items-center gap-2 mb-3">
+                <span className="w-2 h-2 rounded-none bg-[#d4af37]" />
+                <span className="text-[11px] font-mono tracking-widest uppercase text-neutral-400">
+                  Verified Identifier Repository
+                </span>
               </div>
-              <h1 className="text-4xl font-black leading-tight text-white md:text-6xl">
-                Zentirog Username Market
+              <h1 className="font-display text-2xl sm:text-4xl md:text-5xl font-extrabold tracking-tight text-white uppercase leading-[1.05]">
+                Rare Username Market
               </h1>
-              <p className="mt-4 max-w-2xl text-base leading-7 text-red-50/72 md:text-lg">
-                Filter the vault by rarity, sort by price, and lock in a clean Discord handle before the next buyer claims it.
+              <p className="mt-3 text-xs sm:text-sm text-neutral-400 max-w-2xl leading-relaxed">
+                Curated portfolio of original, 3-letter, 4-letter, and high-reputation Discord identifiers. All handoffs are conducted through direct, verified escrow protocols.
               </p>
             </div>
-            <div className="grid grid-cols-3 gap-3">
-              <div className="stat-plate">
-                <span>{availableUsernames.length}</span>
-                <p>Available</p>
-              </div>
-              <div className="stat-plate">
-                <span>{hasHotUsernames ? availableUsernames.filter(u => u.isHot).length : 0}</span>
-                <p>Hot</p>
-              </div>
-              <div className="stat-plate">
-                <span>{soldUsernames.length}</span>
-                <p>Sold</p>
-              </div>
-            </div>
-          </div>
-        </ScrollReveal>
 
-        <ScrollReveal className="mb-8">
-          <div className="flex flex-wrap justify-center gap-3">
-          {categories.map(category => (
-            <button
-              key={category}
-              onClick={() => setSelectedCategory(category)}
-              className={`min-h-12 rounded-full border px-5 py-3 text-sm font-bold uppercase tracking-[0.12em] backdrop-blur transition-all duration-300 hover:-translate-y-1 ${
-                selectedCategory === category
-                  ? 'bg-red-600 border-red-300 text-white shadow-[0_0_32px_rgba(239,68,68,0.42)]'
-                  : 'bg-black/35 border-red-400/20 text-red-50/75 hover:border-red-300/60 hover:bg-red-950/45'
-              } ${category === 'New' ? 'border-emerald-300/70 text-emerald-100' : ''} ${category === 'Hot' ? 'border-red-300/70 text-red-100' : ''} ${category === 'Sold' ? 'border-zinc-400/50 text-zinc-300' : ''}`}
-            >
-              {category}
-              {category === 'New' && hasNewUsernames && (
-                <span className="ml-2 rounded-full bg-emerald-500 px-2 py-1 text-xs text-white">
-                  {availableUsernames.filter(u => u.isNew).length}
-                </span>
-              )}
-              {category === 'Hot' && hasHotUsernames && (
-                <span className="ml-2 rounded-full bg-red-500 px-2 py-1 text-xs text-white">
-                  {availableUsernames.filter(u => u.isHot).length}
-                </span>
-              )}
-              {category === 'Sold' && hasSoldUsernames && (
-                <span className="ml-2 rounded-full bg-zinc-600 px-2 py-1 text-xs text-white">
+            {/* Live Metrics Shelf */}
+            <div className="grid grid-cols-3 gap-2 border-t lg:border-t-0 lg:border-l border-[#1f2127] pt-4 lg:pt-0 lg:pl-6 text-center">
+              <div className="p-2 sm:p-3 bg-[#111216] border border-[#1a1c22]">
+                <div className="text-[10px] font-mono uppercase text-neutral-400">Available</div>
+                <div className="text-xl sm:text-2xl font-mono font-bold text-white mt-1">
+                  {availableUsernames.length}
+                </div>
+              </div>
+              <div className="p-2 sm:p-3 bg-[#111216] border border-[#1a1c22]">
+                <div className="text-[10px] font-mono uppercase text-neutral-400">Claimed</div>
+                <div className="text-xl sm:text-2xl font-mono font-bold text-neutral-300 mt-1">
                   {soldUsernames.length}
-                </span>
-              )}
-            </button>
-          ))}
-          </div>
-        </ScrollReveal>
-
-        <SortControls sortOption={sortOption} onSortChange={setSortOption} />
-
-        {isLoading && <LoadingSpinner />}
-
-        {!isLoading && (
-          <>
-            <div className="grid auto-rows-fr grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              {displayUsernames.map((username, index) => (
-                <ScrollReveal key={`${username.username}-${index}`} delay={Math.min(index * 35, 280)} className="h-full">
-                  <UsernameCard 
-                    username={username.username}
-                    price={username.price}
-                    description={username.description}
-                    isNew={username.isNew}
-                    isSold={username.isSold}
-                    isBest4={username.isBest4}
-                    index={index}
-                    discordLink={discordLink}
-                  />
-                </ScrollReveal>
-              ))}
+                </div>
+              </div>
+              <div className="p-2 sm:p-3 bg-[#111216] border border-[#1a1c22]">
+                <div className="text-[10px] font-mono uppercase text-neutral-400">Transfer</div>
+                <div className="text-xs sm:text-sm font-mono font-bold text-[#d4af37] mt-2">
+                  ESCROW
+                </div>
+              </div>
             </div>
-            
-            {hasMoreToLoad && (
-              <div className="text-center mt-10">
-                <Button 
-                  onClick={handleLoadMore}
-                  size="lg"
-                  className="rounded-full bg-red-600 px-8 py-6 text-white shadow-[0_0_36px_rgba(239,68,68,0.42)] transition hover:-translate-y-1 hover:bg-red-500"
+          </div>
+        </div>
+
+        {/* Filter & Search Bar */}
+        <CatalogFilters
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+          selectedCategory={selectedCategory}
+          onCategorySelect={setSelectedCategory}
+          categories={categories}
+          sortOption={sortOption}
+          onSortChange={setSortOption}
+          viewMode={viewMode}
+          onViewModeToggle={() => setViewMode(prev => prev === 'grid' ? 'list' : 'grid')}
+          hideSold={hideSold}
+          onToggleHideSold={() => setHideSold(prev => !prev)}
+          categoryCounts={categoryCounts}
+        />
+
+        {/* Loading State */}
+        {isLoading && <SkeletonLoader viewMode={viewMode} count={8} />}
+
+        {/* Error Fallback */}
+        {error && (
+          <div className="border border-red-900/40 bg-[#140e10] p-6 text-center text-sm font-mono text-red-200">
+            Database connection timeout. Please verify internet access or re-open the market.
+          </div>
+        )}
+
+        {/* Catalog Results */}
+        {!isLoading && !error && (
+          <>
+            {sortedList.length > 0 ? (
+              viewMode === 'grid' ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
+                  {sortedList.map(item => (
+                    <UsernameItem
+                      key={`${item.username}-${item.id || item.price}`}
+                      item={item}
+                      viewMode="grid"
+                      onSelect={setSelectedItem}
+                      discordLink={discordLink}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="border border-[#20222a] divide-y divide-[#181a20]">
+                  {sortedList.map(item => (
+                    <UsernameItem
+                      key={`${item.username}-${item.id || item.price}`}
+                      item={item}
+                      viewMode="list"
+                      onSelect={setSelectedItem}
+                      discordLink={discordLink}
+                    />
+                  ))}
+                </div>
+              )
+            ) : (
+              <div className="border border-[#20222a] bg-[#0e0f13] p-12 text-center space-y-3">
+                <div className="text-xs font-mono tracking-widest uppercase text-neutral-400">
+                  No Matching Identifiers Found
+                </div>
+                <p className="text-sm text-neutral-400 max-w-md mx-auto">
+                  Try adjusting search parameters, clearing length filters, or check the Discord server for private unlisted inventory.
+                </p>
+                <button
+                  onClick={() => {
+                    setSearchQuery('');
+                    setSelectedCategory('All');
+                    setHideSold(false);
+                  }}
+                  className="px-4 py-2 border border-[#2c2f38] bg-[#16171d] hover:bg-[#202229] text-xs font-mono uppercase text-white transition-colors"
                 >
-                  Load More Usernames
-                </Button>
+                  Reset Catalog Filters
+                </button>
               </div>
             )}
           </>
         )}
 
-        {!isLoading && displayUsernames.length === 0 && (
-          <div className="mx-auto mt-16 max-w-lg rounded-2xl border border-red-400/20 bg-black/40 p-8 text-center text-red-50/75 backdrop-blur">
-            <p className="text-xl font-bold text-white">No usernames found in this category</p>
-            <p className="mt-2">Try another rarity tier or check the Discord for fresh drops.</p>
+        {/* Buyer Protection & Escrow Protocol Walkthrough */}
+        <div className="border border-[#1f2127] bg-[#0c0d10] p-6 sm:p-8">
+          <div className="max-w-3xl">
+            <div className="text-[10px] font-mono tracking-widest uppercase text-[#d4af37] mb-2">
+              Purchase Protection Protocol
+            </div>
+            <h2 className="text-lg sm:text-xl font-display font-bold uppercase tracking-wider text-white">
+              Direct & Verifiable Discord Acquisition
+            </h2>
+            <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4 text-xs font-sans text-neutral-400">
+              <div className="border-t border-[#1f2127] pt-3">
+                <span className="font-mono text-neutral-300 font-bold block mb-1">01 / Reserve Handle</span>
+                Confirm availability directly through our official Discord desk by referencing the target handle.
+              </div>
+              <div className="border-t border-[#1f2127] pt-3">
+                <span className="font-mono text-neutral-300 font-bold block mb-1">02 / Verified Escrow</span>
+                Payment is locked before any credential change or migration instructions take effect.
+              </div>
+              <div className="border-t border-[#1f2127] pt-3">
+                <span className="font-mono text-neutral-300 font-bold block mb-1">03 / Immediate Ownership</span>
+                Receive complete ownership and binding confirmation with step-by-step guidance.
+              </div>
+            </div>
           </div>
-        )}
+        </div>
+      </main>
 
-        <ScrollReveal className="mt-16">
-          <div className="grid gap-4 rounded-[2rem] border border-red-500/20 bg-black/40 p-6 backdrop-blur md:grid-cols-3 md:p-8">
-            <div className="flex gap-4">
-              <ShieldCheck className="mt-1 h-6 w-6 shrink-0 text-red-300" aria-hidden="true" />
-              <div>
-                <h2 className="font-black text-white">Verified transfer</h2>
-                <p className="mt-1 text-sm leading-6 text-red-50/65">Every listed username is checked before it appears in the vault.</p>
-              </div>
-            </div>
-            <div className="flex gap-4">
-              <MessageCircle className="mt-1 h-6 w-6 shrink-0 text-red-300" aria-hidden="true" />
-              <div>
-                <h2 className="font-black text-white">Fast Discord contact</h2>
-                <p className="mt-1 text-sm leading-6 text-red-50/65">Customers can ask questions, negotiate bundles, and close quickly.</p>
-              </div>
-            </div>
-            <div className="flex gap-4">
-              <Sparkles className="mt-1 h-6 w-6 shrink-0 text-red-300" aria-hidden="true" />
-              <div>
-                <h2 className="font-black text-white">Rare buyer appeal</h2>
-                <p className="mt-1 text-sm leading-6 text-red-50/65">Short handles, hot labels, and discount visibility help premium names stand out.</p>
-              </div>
-            </div>
+      {/* Luxury Minimal Footer */}
+      <footer className="border-t border-[#1a1c22] bg-[#08090b] mt-12 py-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs font-mono text-neutral-400">
+          <div className="flex items-center gap-3">
+            <span className="text-white font-bold tracking-widest uppercase">ZENTIROG</span>
+            <span>/</span>
+            <span>EST. 2024</span>
           </div>
-        </ScrollReveal>
-      </div>
+
+          <div className="flex items-center gap-6">
+            <button
+              onClick={() => handleOpenLegal('tos')}
+              className="hover:text-neutral-200 transition-colors uppercase"
+            >
+              Terms of Transfer
+            </button>
+            <button
+              onClick={() => handleOpenLegal('privacy')}
+              className="hover:text-neutral-200 transition-colors uppercase"
+            >
+              Privacy Policy
+            </button>
+            <a
+              href={discordLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-neutral-200 transition-colors uppercase"
+            >
+              Discord Inquiries
+            </a>
+          </div>
+        </div>
+      </footer>
+
+      {/* Modal Sheet for Handle Details */}
+      <HandleDetailModal
+        username={selectedItem}
+        onClose={() => setSelectedItem(null)}
+        discordLink={discordLink}
+      />
+
+      {/* Modal for Terms & Privacy */}
+      <LegalModal
+        isOpen={legalModalOpen}
+        onClose={() => setLegalModalOpen(false)}
+        defaultTab={legalTab}
+      />
     </div>
   );
 };
