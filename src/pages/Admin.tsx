@@ -1,8 +1,5 @@
 import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut, type User } from 'firebase/auth';
-import { AlertTriangle, Crown, Download, Globe, KeyRound, Link as LinkIcon, Lock, LogOut, MessageCircle, Plus, RefreshCw, Save, ShieldCheck, Star, Trash2, Upload } from 'lucide-react';
-import ParticleEffect from '@/components/ParticleEffect';
-import { Button } from '@/components/ui/button';
 import { auth } from '@/lib/firebase';
 import {
   DEFAULT_DISCORD_LINK,
@@ -60,7 +57,7 @@ const buildRawUsernameList = (items: Username[]) => (
 const getAdminErrorMessage = (error: unknown, fallback: string) => {
   const message = error instanceof Error ? error.message : '';
   if (message.toLowerCase().includes('permission')) {
-    return 'Firestore rules are blocking this admin account. Publish the latest firestore.rules for zormogo@gmail.com, then try again.';
+    return 'Firestore rules are blocking this admin account. Check permissions for your admin UID.';
   }
   return message || fallback;
 };
@@ -103,7 +100,7 @@ const Admin = () => {
       ]);
       setUsernames(list);
       setDiscordLinkInput(settings.discordServerLink || DEFAULT_DISCORD_LINK);
-      setStatus('Vault data & settings loaded.');
+      setStatus('Vault data & settings synchronized.');
     } catch (error) {
       setStatus(getAdminErrorMessage(error, 'Could not load vault data.'));
     } finally {
@@ -140,7 +137,7 @@ const Admin = () => {
       await signInWithEmailAndPassword(auth, email.trim(), password);
       setPassword('');
     } catch {
-      setAuthError('Login blocked. Check the admin email/password and Firebase Auth setup.');
+      setAuthError('Authentication rejected. Verify admin credentials.');
     } finally {
       setIsSigningIn(false);
     }
@@ -163,9 +160,9 @@ const Admin = () => {
       });
       setForm(blankUsername);
       await loadData();
-      setStatus('Username saved securely to Firestore.');
+      setStatus(`Identifier ${username} saved successfully.`);
     } catch (error) {
-      setStatus(getAdminErrorMessage(error, 'Could not save username.'));
+      setStatus(getAdminErrorMessage(error, 'Failed to save username.'));
     } finally {
       setIsSaving(false);
     }
@@ -177,9 +174,9 @@ const Admin = () => {
     setSettingsStatus('');
     try {
       await saveAppSettings({ discordServerLink: discordLinkInput });
-      setSettingsStatus('Discord Server Link updated successfully! All Deal buttons will now open this link.');
+      setSettingsStatus('Discord Server Link updated. Live site now points to this invite.');
     } catch (error) {
-      setSettingsStatus(getAdminErrorMessage(error, 'Could not save settings.'));
+      setSettingsStatus(getAdminErrorMessage(error, 'Could not update server link.'));
     } finally {
       setIsSavingSettings(false);
     }
@@ -192,9 +189,9 @@ const Admin = () => {
         isBest4: !username.isBest4,
       });
       await loadData();
-      setStatus(`Updated Top 4 status for ${username.username}`);
+      setStatus(`Updated featured showcase status for ${username.username}`);
     } catch (error) {
-      setStatus(getAdminErrorMessage(error, 'Could not update Top 4 status.'));
+      setStatus(getAdminErrorMessage(error, 'Could not update featured status.'));
     }
   };
 
@@ -210,13 +207,13 @@ const Admin = () => {
 
   const deleteUsername = async (username: Username) => {
     if (!username.id) return;
-    const confirmed = window.confirm(`Delete ${username.username} from Firebase?`);
+    const confirmed = window.confirm(`Delete ${username.username} permanently from database?`);
     if (!confirmed) return;
 
     setStatus('');
     await removeUsername(username.id);
     await loadData();
-    setStatus(`${username.username} removed.`);
+    setStatus(`${username.username} deleted.`);
   };
 
   const handleLegacyPreview = async () => {
@@ -226,12 +223,12 @@ const Admin = () => {
       const items = await fetchLegacyUsernames();
       setImportPreview({
         source: 'legacy',
-        title: 'Legacy GitHub List',
+        title: 'Legacy List',
         items,
       });
-      setStatus(`Review ${items.length} usernames from the legacy list before replacing Firestore.`);
+      setStatus(`Ready to inspect ${items.length} items from legacy archive.`);
     } catch (error) {
-      setStatus(getAdminErrorMessage(error, 'Could not preview legacy usernames.'));
+      setStatus(getAdminErrorMessage(error, 'Could not preview legacy list.'));
     } finally {
       setIsLoading(false);
     }
@@ -247,7 +244,7 @@ const Admin = () => {
     try {
       const items = parseUsernameText(await file.text());
       if (items.length === 0) {
-        setStatus('No valid usernames found in that raw file.');
+        setStatus('No valid handles detected in that file.');
         return;
       }
 
@@ -256,9 +253,9 @@ const Admin = () => {
         title: file.name,
         items,
       });
-      setStatus(`Review ${items.length} usernames from ${file.name} before replacing Firestore.`);
+      setStatus(`Loaded ${items.length} usernames from ${file.name} for inspection.`);
     } catch (error) {
-      setStatus(getAdminErrorMessage(error, 'Could not read that raw list.'));
+      setStatus(getAdminErrorMessage(error, 'Could not parse text file.'));
     } finally {
       setIsLoading(false);
     }
@@ -268,7 +265,7 @@ const Admin = () => {
     if (!importPreview) return;
 
     const confirmed = window.confirm(
-      `Warning: this will replace your current ${usernames.length} Firestore usernames with ${importPreview.items.length} usernames from ${importPreview.title}. This cannot be undone from the admin panel. Continue?`
+      `Replace current database (${usernames.length} items) with ${importPreview.items.length} imported items?`
     );
     if (!confirmed) return;
 
@@ -278,9 +275,9 @@ const Admin = () => {
       const count = await replaceUsernameList(importPreview.items);
       setImportPreview(null);
       await loadData();
-      setStatus(`Replaced the current vault with ${count} usernames from ${importPreview.title}.`);
+      setStatus(`Import complete: ${count} usernames imported.`);
     } catch (error) {
-      setStatus(getAdminErrorMessage(error, 'Could not replace the username list.'));
+      setStatus(getAdminErrorMessage(error, 'Failed to replace username database.'));
     } finally {
       setIsLoading(false);
     }
@@ -288,7 +285,7 @@ const Admin = () => {
 
   const handleExport = () => {
     if (usernames.length === 0) {
-      setStatus('Load or import usernames before exporting.');
+      setStatus('No items available to export.');
       return;
     }
 
@@ -302,408 +299,558 @@ const Admin = () => {
     link.click();
     link.remove();
     URL.revokeObjectURL(url);
-    setStatus(`Exported ${usernames.length} usernames to a raw text file.`);
+    setStatus(`Exported ${usernames.length} records.`);
   };
 
+  // Auth Loading
   if (!authReady) {
     return (
-      <main className="dragon-page grid min-h-screen place-items-center px-5 text-white">
-        <ParticleEffect />
-        <div className="admin-panel max-w-md p-8 text-center">
-          <RefreshCw className="mx-auto h-8 w-8 animate-spin text-red-300" aria-hidden="true" />
-          <p className="mt-4 font-bold">Preparing encrypted admin session...</p>
+      <div className="min-h-screen bg-[#090a0d] flex items-center justify-center p-4 text-[#eaebee] font-mono">
+        <div className="border border-[#23252c] bg-[#101115] p-8 text-center max-w-sm w-full">
+          <div className="text-xs uppercase tracking-widest text-[#d4af37] mb-2">INITIALIZING</div>
+          <p className="text-sm text-neutral-400">Verifying security token...</p>
         </div>
-      </main>
+      </div>
     );
   }
 
+  // Login Screen
   if (!user) {
     return (
-      <main className="dragon-page relative grid min-h-screen place-items-center overflow-hidden px-5 py-12 text-white">
-        <ParticleEffect />
-        <form onSubmit={handleLogin} className="admin-panel relative z-10 w-full max-w-md p-8">
-          <div className="mb-7 flex items-center gap-4">
-            <div className="brand-sigil">
-              <Lock className="h-5 w-5" aria-hidden="true" />
-            </div>
+      <div className="min-h-screen bg-[#090a0d] flex items-center justify-center p-4 text-[#eaebee] font-sans">
+        <div className="border border-[#262830] bg-[#101115] max-w-md w-full p-6 sm:p-8 space-y-6">
+          <div className="border-b border-[#202228] pb-4">
+            <span className="text-[10px] font-mono tracking-widest uppercase text-[#d4af37]">
+              RESTRICTED CONSOLE
+            </span>
+            <h1 className="text-xl sm:text-2xl font-display font-extrabold uppercase tracking-wider text-white mt-1">
+              Zentirog Admin
+            </h1>
+            <p className="text-xs text-neutral-400 font-mono mt-1">
+              Authorized access only. Session events are logged.
+            </p>
+          </div>
+
+          <form onSubmit={handleLogin} className="space-y-4">
             <div>
-              <p className="text-sm font-bold uppercase tracking-[0.26em] text-red-200/70">Encrypted Admin</p>
-              <h1 className="text-3xl font-black">Zentirog Vault Login</h1>
-            </div>
-          </div>
-
-          <label className="admin-label" htmlFor="admin-email">Admin email</label>
-          <input
-            id="admin-email"
-            className="admin-input"
-            type="email"
-            autoComplete="username"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            required
-          />
-
-          <label className="admin-label" htmlFor="admin-password">Password</label>
-          <input
-            id="admin-password"
-            className="admin-input"
-            type="password"
-            autoComplete="current-password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            required
-          />
-
-          {authError && <p className="mt-4 rounded-xl border border-red-400/30 bg-red-950/40 p-3 text-sm text-red-100">{authError}</p>}
-
-          <Button disabled={isSigningIn} className="mt-6 h-12 w-full rounded-full bg-red-600 font-black hover:bg-red-500">
-            <KeyRound className="mr-2 h-4 w-4" aria-hidden="true" />
-            {isSigningIn ? 'Checking...' : 'Unlock Admin Panel'}
-          </Button>
-
-          <p className="mt-5 text-sm leading-6 text-red-50/58">
-            Passwords are handled by Firebase Auth. Keep Firestore rules locked to your admin UID before publishing.
-          </p>
-        </form>
-      </main>
-    );
-  }
-
-  return (
-    <main className="dragon-page min-h-screen overflow-hidden px-5 py-8 text-white md:px-10">
-      <ParticleEffect />
-      <div className="relative z-10 mx-auto max-w-7xl space-y-8">
-
-        {/* Admin Header */}
-        <div className="flex flex-col gap-4 rounded-[2rem] border border-red-400/20 bg-black/35 p-6 backdrop-blur md:flex-row md:items-center md:justify-between">
-          <div>
-            <p className="text-sm font-bold uppercase tracking-[0.3em] text-red-200/70">Admin Vault</p>
-            <h1 className="mt-2 text-4xl font-black">Username Control Room</h1>
-            <p className="mt-2 text-red-50/65">Signed in as {user.email}</p>
-            <p className="mt-1 text-xs text-red-50/45">UID: {user.uid}</p>
-          </div>
-          <div className="flex flex-wrap gap-3">
-            <Button onClick={handleLegacyPreview} disabled={isLoading} className="rounded-full bg-white px-5 font-black text-red-950 hover:bg-red-100">
-              <RefreshCw className="mr-2 h-4 w-4" aria-hidden="true" />
-              Import Legacy List
-            </Button>
-            <Button onClick={() => fileInputRef.current?.click()} disabled={isLoading} variant="outline" className="rounded-full border-red-300/30 bg-black/30 px-5 text-red-50 hover:bg-red-950/50">
-              <Upload className="mr-2 h-4 w-4" aria-hidden="true" />
-              Import Raw List
-            </Button>
-            <Button onClick={handleExport} disabled={isLoading || usernames.length === 0} variant="outline" className="rounded-full border-red-300/30 bg-black/30 px-5 text-red-50 hover:bg-red-950/50">
-              <Download className="mr-2 h-4 w-4" aria-hidden="true" />
-              Export Raw List
-            </Button>
-            <Button onClick={() => signOut(auth)} variant="outline" className="rounded-full border-red-300/30 bg-black/30 px-5 text-red-50 hover:bg-red-950/50">
-              <LogOut className="mr-2 h-4 w-4" aria-hidden="true" />
-              Lock Panel
-            </Button>
-            <input ref={fileInputRef} type="file" accept=".txt,text/plain" className="hidden" onChange={handleRawFileSelect} />
-          </div>
-        </div>
-
-        {/* Discord Server Link Settings Card */}
-        <section className="admin-panel p-6 border-amber-500/30 bg-gradient-to-r from-amber-950/20 via-black/40 to-red-950/20">
-          <form onSubmit={handleSaveSettings} className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-            <div className="flex-1">
-              <div className="inline-flex items-center gap-2 rounded-full border border-amber-400/40 bg-amber-500/10 px-3.5 py-1 text-xs font-black uppercase text-amber-300">
-                <Globe className="h-3.5 w-3.5" />
-                Live Discord Server Settings
-              </div>
-              <h2 className="mt-2 text-2xl font-black text-white flex items-center gap-2">
-                Deal Button Discord Server Link
-              </h2>
-              <p className="mt-1 text-sm text-red-50/65">
-                Change the Discord invite URL anytime. All "Deal" buttons on the website will update instantly!
-              </p>
-              <div className="mt-3 flex items-center gap-2 max-w-2xl">
-                <div className="relative flex-1">
-                  <LinkIcon className="absolute left-3.5 top-3.5 h-4 w-4 text-amber-400" />
-                  <input
-                    type="url"
-                    value={discordLinkInput}
-                    onChange={(e) => setDiscordLinkInput(e.target.value)}
-                    placeholder="https://discord.gg/your-invite-code"
-                    required
-                    className="admin-input pl-10 border-amber-400/30 focus:border-amber-400"
-                  />
-                </div>
-                <Button disabled={isSavingSettings} className="h-12 rounded-full bg-gradient-to-r from-amber-500 to-red-600 font-black text-white px-6 hover:brightness-110">
-                  <Save className="mr-2 h-4 w-4" />
-                  {isSavingSettings ? 'Saving...' : 'Save Server Link'}
-                </Button>
-              </div>
-              {settingsStatus && (
-                <p className="mt-2 text-sm font-bold text-amber-300">{settingsStatus}</p>
-              )}
-            </div>
-          </form>
-        </section>
-
-        {/* Top 4 Best Usernames Showcase Manager */}
-        <section className="admin-panel p-6 border-amber-500/30 bg-black/40">
-          <div className="flex items-center justify-between gap-4 mb-4">
-            <div>
-              <h2 className="text-2xl font-black text-white flex items-center gap-2">
-                <Crown className="h-6 w-6 text-amber-400" />
-                Top 4 Best Usernames Showcase ({featuredTop4.length} Selected)
-              </h2>
-              <p className="mt-1 text-sm text-red-50/65">
-                These usernames are featured prominently in the "4 Best Usernames of All Time" Hall of Fame section on the main page.
-              </p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-            {featuredTop4.map((item, idx) => (
-              <div key={item.id || item.username} className="rounded-xl border border-amber-400/40 bg-amber-950/20 p-4 flex flex-col justify-between">
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-black text-amber-400 uppercase tracking-wider">#{idx + 1} Best Handle</span>
-                    <Button onClick={() => toggleTop4(item)} size="sm" variant="outline" className="h-7 text-xs border-red-400/30 text-red-300 hover:bg-red-950/50">
-                      Remove
-                    </Button>
-                  </div>
-                  <p className="text-xl font-black text-white break-all">{item.username}</p>
-                  <p className="text-sm font-bold text-amber-200 mt-1">{item.price}</p>
-                  <p className="text-xs text-red-50/60 mt-1 line-clamp-2">{item.description}</p>
-                </div>
-              </div>
-            ))}
-
-            {featuredTop4.length < 4 && (
-              <div className="rounded-xl border border-dashed border-amber-400/30 bg-black/20 p-4 flex flex-col items-center justify-center text-center">
-                <Star className="h-6 w-6 text-amber-400/60 mb-2" />
-                <p className="text-sm font-bold text-amber-200/80">Need {4 - featuredTop4.length} more handle(s)</p>
-                <p className="text-xs text-red-50/50 mt-1">Check "🔥 Top 4 Best of All Time" when adding or editing handles below.</p>
-              </div>
-            )}
-          </div>
-        </section>
-
-        {importPreview && (
-          <section className="admin-panel p-6">
-            <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-              <div>
-                <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-red-300/30 bg-red-950/40 px-4 py-2 text-sm font-black text-red-100">
-                  <AlertTriangle className="h-4 w-4" aria-hidden="true" />
-                  Replace warning
-                </div>
-                <h2 className="text-2xl font-black">Review import: {importPreview.title}</h2>
-                <p className="mt-2 max-w-3xl text-sm leading-6 text-red-50/65">
-                  This preview is not saved yet. If you continue, it will delete the current Firestore list and replace it with this imported list.
-                </p>
-                <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                  <div className="stat-plate">
-                    <span>{importPreview.items.length}</span>
-                    <p>Import rows</p>
-                  </div>
-                  <div className="stat-plate">
-                    <span>{usernames.length}</span>
-                    <p>Current rows</p>
-                  </div>
-                  <div className="stat-plate">
-                    <span>{importPreview.items.filter((item) => item.isSold).length}</span>
-                    <p>Sold rows</p>
-                  </div>
-                </div>
-              </div>
-              <div className="flex flex-col gap-3 sm:flex-row lg:flex-col">
-                <Button onClick={handleReplaceFromPreview} disabled={isLoading} className="rounded-full bg-red-600 px-6 font-black hover:bg-red-500">
-                  Replace Current List
-                </Button>
-                <Button onClick={() => setImportPreview(null)} disabled={isLoading} variant="outline" className="rounded-full border-red-300/30 bg-black/30 px-6 text-red-50 hover:bg-red-950/50">
-                  Cancel Import
-                </Button>
-              </div>
-            </div>
-            <div className="mt-6 grid max-h-80 gap-3 overflow-auto pr-2">
-              {importPreview.items.slice(0, 25).map((item, index) => (
-                <div key={`${item.username}-${index}`} className="admin-row">
-                  <div>
-                    <p className="break-words text-lg font-black text-white">{item.username}</p>
-                    <p className="mt-1 text-sm text-red-50/55">{item.category} · {item.public === false ? 'Hidden' : 'Public'}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-xl font-black text-red-100">{item.price}</p>
-                    <p className="mt-1 text-xs uppercase tracking-[0.18em] text-red-200/50">{item.priority}</p>
-                  </div>
-                </div>
-              ))}
-              {importPreview.items.length > 25 && (
-                <div className="rounded-2xl border border-red-400/20 bg-black/30 p-4 text-center text-sm text-red-50/62">
-                  Showing first 25 of {importPreview.items.length} usernames.
-                </div>
-              )}
-            </div>
-          </section>
-        )}
-
-        <div className="grid gap-6 lg:grid-cols-[0.88fr_1.12fr]">
-          <form onSubmit={handleSave} className="admin-panel p-6">
-            <div className="mb-6 flex items-center gap-3">
-              <ShieldCheck className="h-6 w-6 text-red-300" aria-hidden="true" />
-              <h2 className="text-2xl font-black">{form.id ? 'Edit username' : 'Add username'}</h2>
-            </div>
-
-            <label className="admin-label" htmlFor="username">Username</label>
-            <input
-              id="username"
-              className="admin-input"
-              value={form.username}
-              onChange={(event) => setForm((current) => ({ ...current, username: stripHandlePrefix(event.target.value) }))}
-              placeholder="rarehandle"
-              required
-            />
-
-            <label className="admin-label" htmlFor="price">Price or SOLD</label>
-            <input
-              id="price"
-              className="admin-input"
-              value={form.price}
-              onChange={(event) => setForm((current) => ({ ...current, price: stripPricePrefix(event.target.value) }))}
-              placeholder="800 or SOLD"
-              required
-            />
-
-            <label className="admin-label" htmlFor="description">Description</label>
-            <textarea
-              id="description"
-              className="admin-input min-h-24 resize-y"
-              value={form.description}
-              onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))}
-              placeholder="Full sales description for the card"
-            />
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div>
-                <label className="admin-label" htmlFor="category">Category</label>
-                <select
-                  id="category"
-                  className="admin-input"
-                  value={form.category}
-                  onChange={(event) => setForm((current) => ({ ...current, category: event.target.value }))}
-                >
-                  {categories.map((category) => <option key={category}>{category}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="admin-label" htmlFor="priority">Priority</label>
-                <select
-                  id="priority"
-                  className="admin-input"
-                  value={form.priority}
-                  onChange={(event) => setForm((current) => ({ ...current, priority: event.target.value as UsernamePriority }))}
-                >
-                  {priorities.map((priority) => <option key={priority}>{priority}</option>)}
-                </select>
-              </div>
-            </div>
-
-            <div className="mt-5 grid gap-3 sm:grid-cols-2">
-              {[
-                ['isBest4', '👑 Top 4 Best of All Time'],
-                ['isNew', 'New badge'],
-                ['isHot', 'Hot badge'],
-                ['isSold', 'Sold'],
-                ['public', 'Show publicly'],
-              ].map(([key, label]) => (
-                <label key={key} className={`admin-check ${key === 'isBest4' ? 'border-amber-400/40 text-amber-200 bg-amber-950/20' : ''}`}>
-                  <input
-                    type="checkbox"
-                    checked={Boolean(form[key as keyof Username])}
-                    onChange={(event) => setForm((current) => ({ ...current, [key]: event.target.checked }))}
-                  />
-                  {label}
-                </label>
-              ))}
-            </div>
-
-            {status && <p className="mt-5 rounded-xl border border-red-400/20 bg-red-950/30 p-3 text-sm text-red-50/75">{status}</p>}
-
-            <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-              <Button disabled={isSaving} className="h-12 flex-1 rounded-full bg-red-600 font-black hover:bg-red-500">
-                <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-                {isSaving ? 'Saving...' : form.id ? 'Update Username' : 'Add Username'}
-              </Button>
-              {form.id && (
-                <Button
-                  type="button"
-                  onClick={() => setForm(blankUsername)}
-                  variant="outline"
-                  className="h-12 rounded-full border-red-300/30 bg-black/30 text-red-50 hover:bg-red-950/50"
-                >
-                  Cancel Edit
-                </Button>
-              )}
-            </div>
-          </form>
-
-          <section className="admin-panel p-6">
-            <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-              <div>
-                <h2 className="text-2xl font-black">Loaded usernames</h2>
-                <p className="mt-1 text-sm text-red-50/58">{filteredUsernames.length} showing / {usernames.length} total</p>
-              </div>
+              <label className="block text-xs font-mono uppercase tracking-wider text-neutral-400 mb-1.5" htmlFor="admin-email">
+                Operator Email
+              </label>
               <input
-                className="admin-input sm:max-w-xs"
-                placeholder="Search vault..."
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
+                id="admin-email"
+                type="email"
+                autoComplete="username"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                className="w-full bg-[#0d0e12] border border-[#23252c] focus:border-[#d4af37] text-white px-3.5 py-2.5 text-sm font-mono focus:outline-none"
               />
             </div>
 
-            <div className="admin-table">
+            <div>
+              <label className="block text-xs font-mono uppercase tracking-wider text-neutral-400 mb-1.5" htmlFor="admin-password">
+                Passphrase
+              </label>
+              <input
+                id="admin-password"
+                type="password"
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                className="w-full bg-[#0d0e12] border border-[#23252c] focus:border-[#d4af37] text-white px-3.5 py-2.5 text-sm font-mono focus:outline-none"
+              />
+            </div>
+
+            {authError && (
+              <div className="border border-red-900/40 bg-[#160d0e] p-3 text-xs font-mono text-red-300">
+                {authError}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={isSigningIn}
+              className="w-full py-3 bg-[#d4af37] hover:bg-[#e2bd45] text-[#090a0d] font-mono font-bold text-xs uppercase tracking-wider transition-colors disabled:opacity-50"
+            >
+              {isSigningIn ? 'AUTHENTICATING...' : 'AUTHENTICATE ACCESS'}
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  // Authenticated Admin Console
+  return (
+    <div className="min-h-screen bg-[#090a0d] text-[#eaebee] font-sans pb-16">
+      {/* Top Navbar */}
+      <header className="border-b border-[#202228] bg-[#0c0d10] sticky top-0 z-40">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <span className="font-display font-extrabold text-base tracking-widest text-white uppercase">
+              ZENTIROG
+            </span>
+            <span className="text-[10px] font-mono uppercase bg-[#181a20] border border-[#282a34] text-[#d4af37] px-1.5 py-0.5">
+              ADMIN CONTROL
+            </span>
+          </div>
+
+          <div className="flex items-center gap-3 sm:gap-4 text-xs font-mono">
+            <span className="text-neutral-400 hidden md:inline truncate max-w-xs">
+              {user.email}
+            </span>
+            <a
+              href="/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-3 py-1.5 border border-[#262830] hover:border-[#383b46] text-neutral-300 hover:text-white uppercase transition-colors"
+            >
+              Live Vault ↗
+            </a>
+            <button
+              onClick={() => signOut(auth)}
+              className="px-3 py-1.5 border border-red-900/40 bg-[#160d0f] hover:bg-[#201013] text-red-300 uppercase tracking-wider transition-colors"
+            >
+              Exit
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 pt-6 space-y-6">
+        {/* Status Notification */}
+        {status && (
+          <div className="border border-[#2d303a] bg-[#121318] p-3 text-xs font-mono text-[#d4af37] flex items-center justify-between">
+            <span>{status}</span>
+            <button onClick={() => setStatus('')} className="text-neutral-400 hover:text-white">✕</button>
+          </div>
+        )}
+
+        {/* Global Toolbar & Actions */}
+        <div className="border border-[#202228] bg-[#101115] p-4 sm:p-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div className="flex items-center gap-4 text-xs font-mono">
+            <div>
+              <span className="text-neutral-400 block text-[10px]">TOTAL ITEMS</span>
+              <span className="text-lg font-bold text-white">{usernames.length}</span>
+            </div>
+            <div className="border-l border-[#202228] pl-4">
+              <span className="text-neutral-400 block text-[10px]">AVAILABLE</span>
+              <span className="text-lg font-bold text-emerald-400">
+                {usernames.filter(u => !u.isSold).length}
+              </span>
+            </div>
+            <div className="border-l border-[#202228] pl-4">
+              <span className="text-neutral-400 block text-[10px]">SOLD</span>
+              <span className="text-lg font-bold text-neutral-400">
+                {usernames.filter(u => u.isSold).length}
+              </span>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={handleLegacyPreview}
+              disabled={isLoading}
+              className="px-3.5 py-2 border border-[#2c2f38] bg-[#161820] hover:bg-[#20232c] text-xs font-mono uppercase text-neutral-200 transition-colors"
+            >
+              Fetch Legacy
+            </button>
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isLoading}
+              className="px-3.5 py-2 border border-[#2c2f38] bg-[#161820] hover:bg-[#20232c] text-xs font-mono uppercase text-neutral-200 transition-colors"
+            >
+              Import TXT
+            </button>
+            <button
+              onClick={handleExport}
+              disabled={isLoading || usernames.length === 0}
+              className="px-3.5 py-2 border border-[#2c2f38] bg-[#161820] hover:bg-[#20232c] text-xs font-mono uppercase text-neutral-200 transition-colors"
+            >
+              Export TXT
+            </button>
+            <button
+              onClick={loadData}
+              disabled={isLoading}
+              className="px-3.5 py-2 bg-[#d4af37] hover:bg-[#e2bd45] text-[#090a0d] font-mono font-bold text-xs uppercase tracking-wider transition-colors"
+            >
+              Refresh Data
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".txt,text/plain"
+              className="hidden"
+              onChange={handleRawFileSelect}
+            />
+          </div>
+        </div>
+
+        {/* Discord Server Link Form */}
+        <div className="border border-[#202228] bg-[#101115] p-4 sm:p-5">
+          <form onSubmit={handleSaveSettings} className="space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-mono uppercase tracking-widest text-[#d4af37]">
+                Global Marketplace Config
+              </span>
+              {settingsStatus && (
+                <span className="text-xs font-mono text-emerald-400">{settingsStatus}</span>
+              )}
+            </div>
+            <label className="block text-xs font-mono text-neutral-300" htmlFor="discord-link-input">
+              Discord Invite URL (Directs all buyer inquiries across the marketplace)
+            </label>
+            <div className="flex flex-col sm:flex-row items-stretch gap-2">
+              <input
+                id="discord-link-input"
+                type="url"
+                value={discordLinkInput}
+                onChange={(e) => setDiscordLinkInput(e.target.value)}
+                required
+                placeholder="https://discord.gg/your-invite"
+                className="flex-1 bg-[#0d0e12] border border-[#23252c] focus:border-[#d4af37] text-white px-3.5 py-2 text-sm font-mono focus:outline-none"
+              />
+              <button
+                type="submit"
+                disabled={isSavingSettings}
+                className="px-5 py-2 bg-[#1c1e26] hover:bg-[#282b36] border border-[#303340] text-xs font-mono uppercase tracking-wider text-white transition-colors"
+              >
+                {isSavingSettings ? 'Saving...' : 'Update Discord Link'}
+              </button>
+            </div>
+          </form>
+        </div>
+
+        {/* Featured Showcase Quick Bar */}
+        <div className="border border-[#202228] bg-[#101115] p-4 sm:p-5">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-[10px] font-mono uppercase tracking-widest text-[#d4af37]">
+              Featured Showcase ({featuredTop4.length} Selected)
+            </span>
+            <span className="text-xs font-mono text-neutral-400">
+              Highlighted with prime badge
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+            {featuredTop4.map((item, idx) => (
+              <div key={item.id || item.username} className="border border-[#2d303a] bg-[#0d0e12] p-3 flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="text-[10px] font-mono text-[#d4af37]">#{idx + 1} PRIME</div>
+                  <div className="font-mono text-sm font-bold text-white truncate">{item.username}</div>
+                  <div className="text-xs font-mono text-neutral-400">{item.price}</div>
+                </div>
+                <button
+                  onClick={() => toggleTop4(item)}
+                  className="px-2 py-1 border border-[#2c2f38] bg-[#14161c] hover:bg-[#202228] text-[10px] font-mono uppercase text-neutral-400 hover:text-white"
+                >
+                  Unfeature
+                </button>
+              </div>
+            ))}
+            {featuredTop4.length === 0 && (
+              <div className="col-span-full border border-dashed border-[#23252c] p-3 text-center text-xs font-mono text-neutral-400">
+                No handles marked as Prime Showcase. Toggle "Showcase" below on any handle.
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Import Preview Drawer (if active) */}
+        {importPreview && (
+          <div className="border border-amber-900/50 bg-[#16120d] p-5 space-y-4">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div>
+                <span className="text-[10px] font-mono uppercase tracking-widest text-amber-400">
+                  REPLACE ARCHIVE PREVIEW
+                </span>
+                <h3 className="text-base font-bold text-white font-mono mt-0.5">
+                  {importPreview.title} ({importPreview.items.length} items parsed)
+                </h3>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleReplaceFromPreview}
+                  disabled={isLoading}
+                  className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-black font-mono font-bold text-xs uppercase"
+                >
+                  Confirm & Replace Firestore List
+                </button>
+                <button
+                  onClick={() => setImportPreview(null)}
+                  className="px-3 py-2 border border-[#3a3020] text-xs font-mono uppercase text-neutral-300"
+                >
+                  Dismiss
+                </button>
+              </div>
+            </div>
+
+            <div className="max-h-60 overflow-y-auto border border-[#2e261a] divide-y divide-[#241e15]">
+              {importPreview.items.slice(0, 30).map((item, i) => (
+                <div key={i} className="p-2.5 flex items-center justify-between text-xs font-mono">
+                  <span className="text-white">{item.username}</span>
+                  <span className="text-amber-200">{item.price}</span>
+                  <span className="text-neutral-400">{item.category}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Main Split: Form on Left, Catalog Table on Right */}
+        <div className="grid grid-cols-1 lg:grid-cols-[380px_1fr] gap-6">
+          {/* Add / Edit Form */}
+          <div className="border border-[#202228] bg-[#101115] p-5 h-fit space-y-4">
+            <div className="border-b border-[#202228] pb-3 flex items-center justify-between">
+              <span className="text-[10px] font-mono uppercase tracking-widest text-[#d4af37]">
+                {form.id ? 'EDIT RECORD' : 'CREATE RECORD'}
+              </span>
+              {form.id && (
+                <button
+                  onClick={() => setForm(blankUsername)}
+                  className="text-[10px] font-mono text-neutral-400 hover:text-white uppercase"
+                >
+                  Cancel
+                </button>
+              )}
+            </div>
+
+            <form onSubmit={handleSave} className="space-y-3.5">
+              <div>
+                <label className="block text-xs font-mono uppercase tracking-wider text-neutral-400 mb-1" htmlFor="input-handle">
+                  Handle (Without @)
+                </label>
+                <input
+                  id="input-handle"
+                  value={form.username}
+                  onChange={(e) => setForm((c) => ({ ...c, username: stripHandlePrefix(e.target.value) }))}
+                  placeholder="e.g. rare"
+                  required
+                  className="w-full bg-[#0d0e12] border border-[#23252c] focus:border-[#d4af37] text-white px-3 py-2 text-sm font-mono focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-mono uppercase tracking-wider text-neutral-400 mb-1" htmlFor="input-price">
+                  Price ($ or 'SOLD')
+                </label>
+                <input
+                  id="input-price"
+                  value={form.price}
+                  onChange={(e) => setForm((c) => ({ ...c, price: stripPricePrefix(e.target.value) }))}
+                  placeholder="e.g. 500 or SOLD"
+                  required
+                  className="w-full bg-[#0d0e12] border border-[#23252c] focus:border-[#d4af37] text-white px-3 py-2 text-sm font-mono focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-mono uppercase tracking-wider text-neutral-400 mb-1" htmlFor="input-desc">
+                  Vault Note / Description
+                </label>
+                <textarea
+                  id="input-desc"
+                  value={form.description}
+                  onChange={(e) => setForm((c) => ({ ...c, description: e.target.value }))}
+                  rows={3}
+                  placeholder="Notes on rarity, character set, or account status..."
+                  className="w-full bg-[#0d0e12] border border-[#23252c] focus:border-[#d4af37] text-white px-3 py-2 text-xs font-sans focus:outline-none resize-y"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[10px] font-mono uppercase tracking-wider text-neutral-400 mb-1" htmlFor="select-cat">
+                    Category
+                  </label>
+                  <select
+                    id="select-cat"
+                    value={form.category}
+                    onChange={(e) => setForm((c) => ({ ...c, category: e.target.value }))}
+                    className="w-full bg-[#0d0e12] border border-[#23252c] text-white px-2 py-2 text-xs font-mono focus:outline-none"
+                  >
+                    {categories.map((c) => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-mono uppercase tracking-wider text-neutral-400 mb-1" htmlFor="select-priority">
+                    Priority
+                  </label>
+                  <select
+                    id="select-priority"
+                    value={form.priority}
+                    onChange={(e) => setForm((c) => ({ ...c, priority: e.target.value as UsernamePriority }))}
+                    className="w-full bg-[#0d0e12] border border-[#23252c] text-white px-2 py-2 text-xs font-mono focus:outline-none"
+                  >
+                    {priorities.map((p) => <option key={p} value={p}>{p}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              {/* Toggles */}
+              <div className="border border-[#1e2026] bg-[#0c0d10] p-3 space-y-2 text-xs font-mono">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(form.isBest4)}
+                    onChange={(e) => setForm((c) => ({ ...c, isBest4: e.target.checked }))}
+                    className="rounded-none border-[#333742]"
+                  />
+                  <span className="text-[#d4af37]">Prime Showcase (Top 4)</span>
+                </label>
+
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(form.isNew)}
+                    onChange={(e) => setForm((c) => ({ ...c, isNew: e.target.checked }))}
+                    className="rounded-none border-[#333742]"
+                  />
+                  <span>New Drop Badge</span>
+                </label>
+
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(form.isHot)}
+                    onChange={(e) => setForm((c) => ({ ...c, isHot: e.target.checked }))}
+                    className="rounded-none border-[#333742]"
+                  />
+                  <span>High Demand Badge</span>
+                </label>
+
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(form.isSold)}
+                    onChange={(e) => setForm((c) => ({ ...c, isSold: e.target.checked }))}
+                    className="rounded-none border-[#333742]"
+                  />
+                  <span>Mark as Claimed / Sold</span>
+                </label>
+
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={form.public !== false}
+                    onChange={(e) => setForm((c) => ({ ...c, public: e.target.checked }))}
+                    className="rounded-none border-[#333742]"
+                  />
+                  <span>Publish to Public Market</span>
+                </label>
+              </div>
+
+              <button
+                type="submit"
+                disabled={isSaving}
+                className="w-full py-2.5 bg-[#d4af37] hover:bg-[#e2bd45] text-[#090a0d] font-mono font-bold text-xs uppercase tracking-wider transition-colors"
+              >
+                {isSaving ? 'PERSISTING...' : form.id ? 'UPDATE HANDLE' : 'COMMIT TO VAULT'}
+              </button>
+            </form>
+          </div>
+
+          {/* Database Table on Right */}
+          <div className="border border-[#202228] bg-[#101115] p-5 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <span className="text-[10px] font-mono uppercase tracking-widest text-[#d4af37]">
+                  VAULT INVENTORY
+                </span>
+                <h2 className="text-base font-bold text-white font-mono">
+                  {filteredUsernames.length} of {usernames.length} Record(s)
+                </h2>
+              </div>
+
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Filter table..."
+                className="bg-[#0d0e12] border border-[#23252c] focus:border-[#d4af37] text-white px-3 py-1.5 text-xs font-mono focus:outline-none sm:w-60"
+              />
+            </div>
+
+            <div className="border border-[#202228] divide-y divide-[#181a20] max-h-[750px] overflow-y-auto">
               {filteredUsernames.map((item) => (
-                <div key={item.id || item.username} className={`admin-row ${item.isBest4 ? 'border-amber-400/40 bg-amber-950/15' : ''}`}>
-                  <div>
+                <div
+                  key={item.id || item.username}
+                  className="p-3 bg-[#0d0e12] hover:bg-[#12141a] flex items-center justify-between gap-3 transition-colors text-xs font-mono"
+                >
+                  <div className="min-w-0 space-y-0.5">
                     <div className="flex items-center gap-2">
-                      <p className="break-words text-lg font-black text-white">{item.username}</p>
-                      {item.isBest4 && <span className="text-xs bg-amber-500/20 text-amber-300 border border-amber-400/40 px-2 py-0.5 rounded-full font-black">TOP 4</span>}
+                      <span className={`font-bold text-sm truncate ${item.isSold ? 'line-through text-neutral-500' : 'text-white'}`}>
+                        {item.username.startsWith('@') ? item.username : `@${item.username}`}
+                      </span>
+                      {item.isBest4 && (
+                        <span className="text-[9px] border border-[#d4af37]/60 text-[#d4af37] px-1 py-0.2">
+                          PRIME
+                        </span>
+                      )}
+                      {item.isNew && !item.isSold && (
+                        <span className="text-[9px] border border-emerald-500/50 text-emerald-400 px-1 py-0.2">
+                          NEW
+                        </span>
+                      )}
+                      {item.isSold && (
+                        <span className="text-[9px] border border-neutral-600 text-neutral-400 px-1 py-0.2">
+                          SOLD
+                        </span>
+                      )}
                     </div>
-                    <p className="mt-1 text-sm text-red-50/55">{item.category} · {item.public === false ? 'Hidden' : 'Public'}</p>
+                    <div className="text-[11px] text-neutral-400 flex items-center gap-2">
+                      <span>{item.category}</span>
+                      <span>·</span>
+                      <span className="text-neutral-300 font-bold">{item.price}</span>
+                      {item.public === false && (
+                        <>
+                          <span>·</span>
+                          <span className="text-amber-400">HIDDEN</span>
+                        </>
+                      )}
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <p className="text-xl font-black text-red-100">{item.price}</p>
-                    <p className="mt-1 text-xs uppercase tracking-[0.18em] text-red-200/50">{item.priority}</p>
-                  </div>
-                  <div className="flex justify-end gap-2">
-                    <Button
-                      type="button"
+
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
                       onClick={() => toggleTop4(item)}
-                      variant="outline"
-                      className={`rounded-full px-3 text-xs font-bold ${item.isBest4 ? 'border-amber-400 bg-amber-500/20 text-amber-200' : 'border-amber-400/20 bg-black/20 text-amber-400/70 hover:bg-amber-950/40'}`}
-                      title={item.isBest4 ? 'Remove from Top 4' : 'Add to Top 4'}
+                      title="Toggle Prime"
+                      className={`px-2 py-1 border text-[10px] uppercase transition-colors ${
+                        item.isBest4
+                          ? 'border-[#d4af37] text-[#d4af37] bg-[#1a1710]'
+                          : 'border-[#262830] text-neutral-400 hover:text-white'
+                      }`}
                     >
-                      <Crown className="h-3.5 w-3.5 mr-1" />
-                      {item.isBest4 ? 'Top 4' : 'Make Top 4'}
-                    </Button>
-                    <Button type="button" onClick={() => editUsername(item)} className="rounded-full bg-red-600 px-4 font-bold hover:bg-red-500">
+                      {item.isBest4 ? '★ Prime' : '☆'}
+                    </button>
+                    <button
+                      onClick={() => editUsername(item)}
+                      className="px-2.5 py-1 border border-[#2c2f38] bg-[#161820] hover:bg-[#20232c] text-neutral-200 text-[10px] uppercase transition-colors"
+                    >
                       Edit
-                    </Button>
-                    <Button
-                      type="button"
+                    </button>
+                    <button
                       onClick={() => deleteUsername(item)}
-                      variant="outline"
-                      className="rounded-full border-red-300/30 bg-black/30 px-4 text-red-50 hover:bg-red-950/50"
+                      className="px-2 py-1 border border-red-900/40 bg-[#160d0f] hover:bg-[#220e11] text-red-300 text-[10px] uppercase transition-colors"
                     >
-                      <Trash2 className="h-4 w-4" aria-hidden="true" />
-                    </Button>
+                      Del
+                    </button>
                   </div>
                 </div>
               ))}
 
-              {!isLoading && filteredUsernames.length === 0 && (
-                <div className="rounded-2xl border border-red-400/20 bg-black/30 p-8 text-center text-red-50/62">
-                  No usernames loaded yet. Add one or import the legacy list.
+              {filteredUsernames.length === 0 && !isLoading && (
+                <div className="p-8 text-center text-xs font-mono text-neutral-400">
+                  No records match filter query.
                 </div>
               )}
             </div>
-          </section>
+          </div>
         </div>
-      </div>
-    </main>
+      </main>
+    </div>
   );
 };
 

@@ -313,8 +313,6 @@ const Index = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs font-mono text-neutral-400">
           <div className="flex items-center gap-3">
             <span className="text-white font-bold tracking-widest uppercase">ZENTIROG</span>
-            <span>/</span>
-            <span>EST. 2024</span>
           </div>
 
           <div className="flex items-center gap-6">
