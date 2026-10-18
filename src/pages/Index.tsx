@@ -168,14 +168,14 @@ const Index = () => {
               <div className="flex items-center gap-2 mb-3">
                 <span className="w-2 h-2 rounded-none bg-[#d4af37]" />
                 <span className="text-[11px] font-mono tracking-widest uppercase text-neutral-400">
-                  Verified Identifier Repository
+                  #1 Discord Usernames & Account Market
                 </span>
               </div>
               <h1 className="font-display text-2xl sm:text-4xl md:text-5xl font-extrabold tracking-tight text-white uppercase leading-[1.05]">
-                Rare Username Market
+                Discord Usernames Market
               </h1>
               <p className="mt-3 text-xs sm:text-sm text-neutral-400 max-w-2xl leading-relaxed">
-                Curated portfolio of original, 3-letter, 4-letter, and high-reputation Discord identifiers. All handoffs are conducted through direct, verified escrow protocols.
+                The premier digital username market for verified Discord handles. Browse rare 3-letter (3L), 4-letter (4L), clean words, and OG pre-claimed Discord accounts with secure escrow transfer and instant handoff.
               </p>
             </div>
 
@@ -306,6 +306,59 @@ const Index = () => {
             </div>
           </div>
         </div>
+
+        {/* SEO FAQ & Knowledge Base for Search Engines */}
+        <section className="border border-[#1f2127] bg-[#0c0d10] p-6 sm:p-8 space-y-6">
+          <div className="max-w-3xl">
+            <span className="text-[10px] font-mono uppercase tracking-widest text-[#d4af37]">
+              FAQ & Buyer Guide
+            </span>
+            <h2 className="text-xl sm:text-2xl font-display font-bold uppercase tracking-wider text-white mt-1">
+              About The Discord Username Market
+            </h2>
+            <p className="text-xs text-neutral-400 font-mono mt-1">
+              Everything you need to know about buying rare Discord usernames and user accounts.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5 text-xs text-neutral-300">
+            <div className="border border-[#1e2026] bg-[#101115] p-4 space-y-2">
+              <h3 className="font-mono font-bold text-white text-sm">
+                What is a Discord Username Market?
+              </h3>
+              <p className="text-neutral-400 leading-relaxed">
+                A Discord username market is a curated exchange where buyers can find and acquire rare, short (such as 3-letter or 4-letter), clean dictionary words, and vanity Discord handles that are otherwise unavailable or claimed.
+              </p>
+            </div>
+
+            <div className="border border-[#1e2026] bg-[#101115] p-4 space-y-2">
+              <h3 className="font-mono font-bold text-white text-sm">
+                How does the purchase and transfer process work?
+              </h3>
+              <p className="text-neutral-400 leading-relaxed">
+                When you choose an available username in our live market, simply tap "Inquire via Discord" to speak with our desk. Usernames are transferred directly as pre-claimed accounts with clear instructions to change email, password, and enable 2FA immediately.
+              </p>
+            </div>
+
+            <div className="border border-[#1e2026] bg-[#101115] p-4 space-y-2">
+              <h3 className="font-mono font-bold text-white text-sm">
+                Why buy 3-Letter (3L) or 4-Letter (4L) Discord handles?
+              </h3>
+              <p className="text-neutral-400 leading-relaxed">
+                Short Discord usernames carry high prestige, brand memorability, and vanity value across gaming communities, crypto networks, and creator platforms. Due to finite mathematical combinations, supply is strictly limited.
+              </p>
+            </div>
+
+            <div className="border border-[#1e2026] bg-[#101115] p-4 space-y-2">
+              <h3 className="font-mono font-bold text-white text-sm">
+                Is buyer escrow and safety guaranteed?
+              </h3>
+              <p className="text-neutral-400 leading-relaxed">
+                Yes. Every deal follows a transparent protocol where handle ownership and account credentials are verified before release, ensuring safe transactions for all buyers.
+              </p>
+            </div>
+          </div>
+        </section>
       </main>
 
       {/* Luxury Minimal Footer */}
