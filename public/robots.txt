@@ -2,4 +2,4 @@ User-agent: *
 Allow: /
 Disallow: /vault-nddx1x2m1dTp9ZgfBJkvzcVy1SE3
 
-Sitemap: https://zentirog.com/sitemap.xml
+Sitemap: https://users.zentirog.lol/sitemap.xml
