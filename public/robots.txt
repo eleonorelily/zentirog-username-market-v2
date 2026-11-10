@@ -1,5 +1,6 @@
 User-agent: *
 Allow: /
-Disallow: /vault-nddx1x2m1dTp9ZgfBJkvzcVy1SE3
+Disallow: /admin
+Disallow: /vault/
 
 Sitemap: https://users.zentirog.lol/sitemap.xml

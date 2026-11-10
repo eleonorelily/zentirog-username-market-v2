@@ -9,8 +9,7 @@ service cloud.firestore {
     function isAdmin() {
       return signedIn()
         && (
-          request.auth.uid == 'nddx1x2m1dTp9ZgfBJkvzcVy1SE3'
-          || request.auth.token.email == 'zormogo@gmail.com'
+          (request.auth.uid == 'nddx1x2m1dTp9ZgfBJkvzcVy1SE3' && request.auth.token.email == 'zormogo@gmail.com' && request.auth.token.email_verified == true)
           || exists(/databases/$(database)/documents/admins/$(request.auth.uid))
         );
     }
@@ -58,7 +57,7 @@ service cloud.firestore {
     }
 
     match /settings/{settingId} {
-      allow read: if true;
+      allow read: if settingId == 'config';
       allow write: if isAdmin();
     }
 

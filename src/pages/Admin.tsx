@@ -129,15 +129,61 @@ const Admin = () => {
     return usernames.filter(u => u.isBest4);
   }, [usernames]);
 
+  const [failedAttempts, setFailedAttempts] = useState(() => {
+    const saved = localStorage.getItem('admin_login_lockout');
+    if (!saved) return 0;
+    try {
+      const parsed = JSON.parse(saved);
+      if (parsed.lockedUntil && Date.now() < parsed.lockedUntil) {
+        return parsed.attempts || 5;
+      }
+      return 0;
+    } catch {
+      return 0;
+    }
+  });
+  const [lockedUntil, setLockedUntil] = useState<number | null>(() => {
+    const saved = localStorage.getItem('admin_login_lockout');
+    if (!saved) return null;
+    try {
+      const parsed = JSON.parse(saved);
+      if (parsed.lockedUntil && Date.now() < parsed.lockedUntil) {
+        return parsed.lockedUntil;
+      }
+      localStorage.removeItem('admin_login_lockout');
+      return null;
+    } catch {
+      return null;
+    }
+  });
+
   const handleLogin = async (event: FormEvent) => {
     event.preventDefault();
+    if (lockedUntil && Date.now() < lockedUntil) {
+      const remainingSeconds = Math.ceil((lockedUntil - Date.now()) / 1000);
+      setAuthError(`Too many failed login attempts. Temporarily locked for ${remainingSeconds}s.`);
+      return;
+    }
+
     setAuthError('');
     setIsSigningIn(true);
     try {
       await signInWithEmailAndPassword(auth, email.trim(), password);
       setPassword('');
+      setFailedAttempts(0);
+      setLockedUntil(null);
+      localStorage.removeItem('admin_login_lockout');
     } catch {
-      setAuthError('Authentication rejected. Verify admin credentials.');
+      const newAttempts = failedAttempts + 1;
+      setFailedAttempts(newAttempts);
+      if (newAttempts >= 5) {
+        const lockoutTime = Date.now() + 60 * 1000 * 5; // 5 minute lock
+        setLockedUntil(lockoutTime);
+        localStorage.setItem('admin_login_lockout', JSON.stringify({ attempts: newAttempts, lockedUntil: lockoutTime }));
+        setAuthError('Too many failed attempts. Security lockout active for 5 minutes.');
+      } else {
+        setAuthError(`Authentication rejected. (${5 - newAttempts} attempts remaining before lockout).`);
+      }
     } finally {
       setIsSigningIn(false);
     }
