@@ -9,5 +9,12 @@ export const useDiscordLink = () => {
     refetchInterval: 60000,
   });
 
-  return data?.discordServerLink || DEFAULT_DISCORD_LINK;
+  const rawLink = data?.discordServerLink || DEFAULT_DISCORD_LINK;
+  
+  // Security validation: Only allow legitimate https:// URLs to prevent javascript: or malformed URI execution
+  if (!/^https?:\/\//i.test(rawLink.trim())) {
+    return DEFAULT_DISCORD_LINK;
+  }
+
+  return rawLink.trim();
 };
