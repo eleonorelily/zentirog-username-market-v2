@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import crypto from 'node:crypto';
 import { Resend } from 'resend';
+import { checkRateLimit } from './_rate-limiter';
 
 const CRYPTOMUS_MERCHANT_ID = process.env.CRYPTOMUS_MERCHANT_ID || '';
 const CRYPTOMUS_PAYMENT_KEY = process.env.CRYPTOMUS_PAYMENT_KEY || '';
@@ -23,6 +24,13 @@ function parsePriceToNumber(rawPrice: string): number {
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method Not Allowed' });
+  }
+
+  // IP Rate limiting (max 10 requests per minute per IP to prevent spam & quota burnout)
+  const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.socket.remoteAddress || 'unknown';
+  const { allowed } = checkRateLimit(clientIp, 10, 60000);
+  if (!allowed) {
+    return res.status(429).json({ error: 'Too many requests. Please wait 1 minute before trying again.' });
   }
 
   try {

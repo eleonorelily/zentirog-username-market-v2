@@ -55,7 +55,14 @@ const fromFirestore = (id: string, data: Record<string, unknown>): Username => (
 export const fetchPublishedUsernames = async (): Promise<Username[]> => {
   const snapshot = await getDocs(query(usernamesCollection, where('public', '==', true)));
   return snapshot.docs
-    .map((item) => fromFirestore(item.id, item.data()))
+    .map((item) => {
+      const u = fromFirestore(item.id, item.data());
+      // Strip credentials from client view for security
+      return {
+        ...u,
+        credentials: '',
+      };
+    })
     .filter((item) => item.username && item.price);
 };
 
