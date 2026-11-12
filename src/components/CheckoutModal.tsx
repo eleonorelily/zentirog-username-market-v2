@@ -125,6 +125,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         body: JSON.stringify({
           usernameId: username.id,
           username: username.username,
+          amount: `$${basePriceNum.toFixed(2)}`,
           customerEmail: email.trim(),
           discountCode: appliedDiscount?.code || '',
         }),
