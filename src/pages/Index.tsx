@@ -243,6 +243,7 @@ const Index = () => {
                       item={item}
                       viewMode="grid"
                       onSelect={setSelectedItem}
+                      onBuy={setCheckoutItem}
                       discordLink={discordLink}
                     />
                   ))}
@@ -255,6 +256,7 @@ const Index = () => {
                       item={item}
                       viewMode="list"
                       onSelect={setSelectedItem}
+                      onBuy={setCheckoutItem}
                       discordLink={discordLink}
                     />
                   ))}
