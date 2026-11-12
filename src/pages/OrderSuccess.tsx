@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
+import { useDiscordLink } from '@/hooks/useDiscordLink';
 
 const OrderSuccess = () => {
   const [searchParams] = useSearchParams();
   const orderId = searchParams.get('order_id') || 'ORD-REFERENCE';
   const handle = searchParams.get('handle') || 'Discord Handle';
   const token = searchParams.get('token') || '';
+  const discordLink = useDiscordLink();
 
   const [credentials, setCredentials] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(Boolean(token));
@@ -114,7 +116,7 @@ const OrderSuccess = () => {
               Cold Storage Vault Notice
             </div>
             <p className="text-[11px] leading-relaxed text-neutral-300">
-              This handle was secured in offline cold storage. Please open a ticket on Discord and provide Order ID <strong className="text-white font-mono">{orderId}</strong> for immediate manual delivery from the owner.
+              This handle was secured in offline cold storage. Please open a ticket on Discord or message owner <strong className="text-white font-mono">@nonconfident</strong> with Order ID <strong className="text-white font-mono">{orderId}</strong> for immediate direct delivery.
             </p>
           </div>
         )}
@@ -186,12 +188,12 @@ const OrderSuccess = () => {
             Return to Market
           </Link>
           <a
-            href="https://discord.gg/z36zMpAGPm"
+            href={discordLink}
             target="_blank"
             rel="noopener noreferrer"
             className="flex-1 py-3 border border-[#2b2e38] hover:border-[#3e4252] text-xs font-mono uppercase text-neutral-300 hover:text-white text-center transition-colors bg-[#14161d]"
           >
-            Join Discord Desk
+            Join Discord Desk (@nonconfident)
           </a>
         </div>
       </div>

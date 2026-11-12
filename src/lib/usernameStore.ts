@@ -17,7 +17,7 @@ import type { Username } from '@/types/username';
 import type { AppSettings } from '@/types/settings';
 
 const usernamesCollection = collection(db, 'usernames');
-export const DEFAULT_DISCORD_LINK = 'https://discord.gg/z36zMpAGPm';
+export const DEFAULT_DISCORD_LINK = 'https://discord.gg/5WC6sH2rrj';
 
 const cleanUsername = (username: Username): Username => ({
   username: normalizeHandle(username.username),

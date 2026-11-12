@@ -171,6 +171,21 @@ async function dispatchDeliveryEmail(params: {
   const cleanCreds = (credentials || '').trim();
   const hasCreds = cleanCreds.length > 0;
 
+  // Dynamically load active Discord link from Firestore
+  let activeDiscordLink = 'https://discord.gg/5WC6sH2rrj';
+  try {
+    const configRes = await fetch(
+      `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/settings/config?key=AIzaSyAhd2t2lx8ooUYEdlll2V0YLSCq3QgOK2k`
+    );
+    if (configRes.ok) {
+      const configJson = await configRes.json();
+      const link = configJson.fields?.discordServerLink?.stringValue;
+      if (link) activeDiscordLink = link;
+    }
+  } catch (cErr) {
+    console.warn('Could not fetch active discord link for email:', cErr);
+  }
+
   const credentialsBlock = hasCreds
     ? `
       <div style="background-color: #14161d; border: 1px solid #333745; padding: 20px; margin-bottom: 24px;">
@@ -185,14 +200,15 @@ async function dispatchDeliveryEmail(params: {
           Your on-chain payment has been verified! The credentials for <strong>${username}</strong> are held in offline cold storage.
         </p>
         <p style="font-size: 13px; color: #e6dfd5; margin: 0 0 16px 0; line-height: 1.6;">
-          Please open a ticket on Discord and send your invoice reference to receive immediate direct transfer from the owner:
+          Please open a ticket on Discord or DM owner <strong style="color: #ffffff; font-family: monospace;">@nonconfident</strong> with your invoice reference:
         </p>
         <div style="background-color: #0c0d10; border: 1px solid #333745; padding: 12px; font-family: monospace; font-size: 12px; color: #a1a1aa; margin-bottom: 16px;">
           Order Reference: <strong style="color: #ffffff;">${orderId}</strong><br/>
           Identifier: <strong style="color: #ffffff;">${username}</strong><br/>
-          Email: <strong style="color: #ffffff;">${customerEmail}</strong>
+          Email: <strong style="color: #ffffff;">${customerEmail}</strong><br/>
+          Direct Contact: <strong style="color: #d4af37;">@nonconfident</strong> on Discord
         </div>
-        <a href="https://discord.gg/z36zMpAGPm" style="display: inline-block; background-color: #d4af37; color: #090a0d; font-family: monospace; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; padding: 12px 24px; text-decoration: none;">Open Discord Ticket & Show Invoice</a>
+        <a href="${activeDiscordLink}" style="display: inline-block; background-color: #d4af37; color: #090a0d; font-family: monospace; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; padding: 12px 24px; text-decoration: none;">Join Discord & Contact @nonconfident</a>
       </div>
     `;
 
@@ -250,8 +266,8 @@ async function dispatchDeliveryEmail(params: {
             ${instructionsBlock}
 
             <div style="border-top: 1px solid #22242a; padding-top: 20px; text-align: center;">
-              <p style="font-size: 12px; color: #71717a; margin: 0 0 12px 0;">Need assistance with transfer?</p>
-              <a href="https://discord.gg/z36zMpAGPm" style="display: inline-block; background-color: #1c1e24; color: #ffffff; border: 1px solid #333742; font-family: monospace; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; padding: 10px 20px; text-decoration: none;">Join Discord Community</a>
+              <p style="font-size: 12px; color: #71717a; margin: 0 0 12px 0;">Need assistance with transfer? Contact @nonconfident directly:</p>
+              <a href="${activeDiscordLink}" style="display: inline-block; background-color: #1c1e24; color: #ffffff; border: 1px solid #333742; font-family: monospace; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; padding: 10px 20px; text-decoration: none;">Join Discord Community</a>
             </div>
           </div>
         </div>
