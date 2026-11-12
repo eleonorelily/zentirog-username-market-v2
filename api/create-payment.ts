@@ -114,13 +114,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           }),
         }
       );
-                },
-              },
-              limit: 1,
-            },
-          }),
-        }
-      );
       if (queryRes.ok) {
         const queryJson = await queryRes.json();
         const firstDoc = queryJson[0]?.document;
