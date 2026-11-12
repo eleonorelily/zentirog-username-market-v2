@@ -45,7 +45,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (usernameId) {
       const docRes = await fetch(
-        `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/usernames/${usernameId}`
+        `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/usernames/${usernameId}?key=AIzaSyAhd2t2lx8ooUYEdlll2V0YLSCq3QgOK2k`
       );
       if (docRes.ok) {
         const docJson = await docRes.json();
@@ -61,7 +61,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       // Fallback query by username if usernameId was omitted
       const cleanHandle = username.startsWith('@') ? username : `@${username}`;
       const queryRes = await fetch(
-        `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents:runQuery`,
+        `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents:runQuery?key=AIzaSyAhd2t2lx8ooUYEdlll2V0YLSCq3QgOK2k`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -69,10 +69,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             structuredQuery: {
               from: [{ collectionId: 'usernames' }],
               where: {
-                fieldFilter: {
-                  field: { fieldPath: 'username' },
-                  op: 'EQUAL',
-                  value: { stringValue: cleanHandle },
+                compositeFilter: {
+                  op: 'AND',
+                  filters: [
+                    {
+                      fieldFilter: {
+                        field: { fieldPath: 'username' },
+                        op: 'EQUAL',
+                        value: { stringValue: cleanHandle },
+                      },
+                    },
+                    {
+                      fieldFilter: {
+                        field: { fieldPath: 'public' },
+                        op: 'EQUAL',
+                        value: { booleanValue: true },
+                      },
+                    },
+                  ],
                 },
               },
               limit: 1,
@@ -92,6 +106,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           actualUsername = fields.username?.stringValue || username;
           credentials = fields.credentials?.stringValue || '';
         }
+      }
+    }
+
+    // Fallback: If Firestore daily free read quota is exhausted (HTTP 429), parse passed amount safely
+    if (!realPrice && req.body.amount) {
+      const parsedAmount = parsePriceToNumber(req.body.amount);
+      if (parsedAmount > 0) {
+        realPrice = parsedAmount;
       }
     }
 
