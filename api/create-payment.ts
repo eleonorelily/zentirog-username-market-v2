@@ -109,14 +109,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
 
-    // Fallback: If Firestore daily free read quota is exhausted (HTTP 429), parse passed amount safely
-    if (!realPrice && req.body.amount) {
-      const parsedAmount = parsePriceToNumber(req.body.amount);
-      if (parsedAmount > 0) {
-        realPrice = parsedAmount;
-      }
-    }
-
+    // NEVER trust amount from client request body. Only accept server-verified database price.
     if (isSold) {
       return res.status(400).json({ error: 'This identifier has already been claimed/sold.' });
     }
