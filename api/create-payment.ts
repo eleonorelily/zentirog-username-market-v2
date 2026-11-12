@@ -1,7 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import crypto from 'node:crypto';
 import { Resend } from 'resend';
-import { checkRateLimit } from './_rate-limiter';
 
 const CRYPTOMUS_MERCHANT_ID = process.env.CRYPTOMUS_MERCHANT_ID || '';
 const CRYPTOMUS_PAYMENT_KEY = process.env.CRYPTOMUS_PAYMENT_KEY || '';
@@ -9,6 +8,20 @@ const RESEND_API_KEY = process.env.RESEND_API_KEY || '';
 const resend = new Resend(RESEND_API_KEY);
 
 const FIREBASE_PROJECT_ID = 'zentirog-market-2026';
+
+// In-memory IP rate limiter (sliding window, max 10 requests / min / IP)
+const ipCache = new Map<string, number[]>();
+function isRateLimited(ip: string, max = 10, windowMs = 60000): boolean {
+  const now = Date.now();
+  const times = (ipCache.get(ip) || []).filter(t => now - t < windowMs);
+  if (times.length >= max) {
+    ipCache.set(ip, times);
+    return true;
+  }
+  times.push(now);
+  ipCache.set(ip, times);
+  return false;
+}
 
 // Helper to extract clean USD price from handle price string
 function parsePriceToNumber(rawPrice: string): number {
@@ -26,10 +39,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
 
-  // IP Rate limiting (max 10 requests per minute per IP to prevent spam & quota burnout)
+  // IP Rate limiting
   const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.socket.remoteAddress || 'unknown';
-  const { allowed } = checkRateLimit(clientIp, 10, 60000);
-  if (!allowed) {
+  if (isRateLimited(clientIp, 10, 60000)) {
     return res.status(429).json({ error: 'Too many requests. Please wait 1 minute before trying again.' });
   }
 
