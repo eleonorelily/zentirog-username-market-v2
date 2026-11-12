@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import crypto from 'node:crypto';
 
-const CRYPTOMUS_PAYMENT_KEY = process.env.CRYPTOMUS_PAYMENT_KEY || 'default_secret_key_zentirog_vault_2026';
+const CRYPTOMUS_PAYMENT_KEY = process.env.CRYPTOMUS_PAYMENT_KEY || process.env.ORDER_TOKEN_SECRET || '';
 const FIREBASE_PROJECT_ID = 'zentirog-market-2026';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -21,7 +21,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     .update(`${order_id}:${handle}`)
     .digest('hex');
 
-  if (!token || token !== expectedToken) {
+  if (!token || !CRYPTOMUS_PAYMENT_KEY || token !== expectedToken) {
     return res.status(401).json({ error: 'Unauthorized or expired token.' });
   }
 

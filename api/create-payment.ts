@@ -174,7 +174,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Generate secure HMAC token for viewing order details
     const orderToken = crypto
-      .createHmac('sha256', CRYPTOMUS_PAYMENT_KEY || 'default_secret_key_zentirog_vault_2026')
+      .createHmac('sha256', CRYPTOMUS_PAYMENT_KEY || process.env.ORDER_TOKEN_SECRET || '')
       .update(`${orderId}:${actualUsername}`)
       .digest('hex');
 
