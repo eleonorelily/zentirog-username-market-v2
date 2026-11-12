@@ -410,6 +410,7 @@ const Index = () => {
         isOpen={Boolean(checkoutItem)}
         onClose={() => setCheckoutItem(null)}
         username={checkoutItem}
+        discordLink={discordLink}
       />
 
       {/* Modal for Terms & Privacy */}
