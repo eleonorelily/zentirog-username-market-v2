@@ -28,9 +28,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const cleanHandle = String(handle).startsWith('@') ? String(handle) : `@${handle}`;
 
-    // Read credentials from Firestore for this handle
+    // Read credentials from Firestore for this handle (including public == true filter and API key to satisfy security rules)
     const queryRes = await fetch(
-      `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents:runQuery`,
+      `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents:runQuery?key=AIzaSyAhd2t2lx8ooUYEdlll2V0YLSCq3QgOK2k`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -38,10 +38,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           structuredQuery: {
             from: [{ collectionId: 'usernames' }],
             where: {
-              fieldFilter: {
-                field: { fieldPath: 'username' },
-                op: 'EQUAL',
-                value: { stringValue: cleanHandle },
+              compositeFilter: {
+                op: 'AND',
+                filters: [
+                  {
+                    fieldFilter: {
+                      field: { fieldPath: 'username' },
+                      op: 'EQUAL',
+                      value: { stringValue: cleanHandle },
+                    },
+                  },
+                  {
+                    fieldFilter: {
+                      field: { fieldPath: 'public' },
+                      op: 'EQUAL',
+                      value: { booleanValue: true },
+                    },
+                  },
+                ],
               },
             },
             limit: 1,
