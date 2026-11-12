@@ -210,13 +210,17 @@ const Admin = () => {
     try {
       const username = normalizeHandle(form.username);
       const normalizedPrice = normalizePrice(form.price);
-      const isSold = form.isSold || normalizedPrice === 'SOLD';
+      // If user inputs a numerical price, unmark sold automatically
+      const isExplicitlySold = form.isSold || normalizedPrice === 'SOLD';
+      const isSold = normalizedPrice === 'SOLD' ? true : isExplicitlySold;
+      const finalPrice = isSold ? 'SOLD' : normalizedPrice;
+
       await saveUsername({
         ...form,
         username,
-        price: normalizedPrice,
+        price: finalPrice,
         isSold,
-        category: isSold ? 'Sold' : form.category || getLengthCategory(username),
+        category: isSold ? 'Sold' : (form.category === 'Sold' ? 'Semi usernames' : form.category) || getLengthCategory(username),
       });
       setForm(blankUsername);
       await loadData();
@@ -334,11 +338,14 @@ const Admin = () => {
   };
 
   const editUsername = (username: Username) => {
+    const isSoldItem = username.isSold || username.price === 'SOLD';
     setForm({
       ...blankUsername,
       ...username,
       username: stripHandlePrefix(username.username),
-      price: stripPricePrefix(username.price),
+      price: isSoldItem ? '' : stripPricePrefix(username.price),
+      isSold: false, // Reset sold checkbox so you can immediately put a price and relist
+      category: username.category === 'Sold' ? 'Semi usernames' : (username.category || 'Semi usernames'),
     });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
