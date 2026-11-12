@@ -74,7 +74,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (targetDocId) {
       try {
-        const firestoreUrl = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/usernames/${targetDocId}`;
+        const firestoreUrl = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/usernames/${targetDocId}?key=AIzaSyAhd2t2lx8ooUYEdlll2V0YLSCq3QgOK2k`;
         const docRes = await fetch(firestoreUrl);
         if (docRes.ok) {
           const docData = await docRes.json();
@@ -83,7 +83,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           }
 
           // Mark username as SOLD in Firestore
-          await fetch(`${firestoreUrl}?updateMask.fieldPaths=isSold&updateMask.fieldPaths=price`, {
+          await fetch(`${firestoreUrl}&updateMask.fieldPaths=isSold&updateMask.fieldPaths=price`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -120,7 +120,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
 async function incrementDiscountUsage(codeToIncrement: string) {
   const discountsRes = await fetch(
-    `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/settings/discounts`
+    `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/settings/discounts?key=AIzaSyAhd2t2lx8ooUYEdlll2V0YLSCq3QgOK2k`
   );
   if (!discountsRes.ok) return;
   const discountsJson = await discountsRes.json();
@@ -144,7 +144,7 @@ async function incrementDiscountUsage(codeToIncrement: string) {
   });
 
   await fetch(
-    `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/settings/discounts?updateMask.fieldPaths=codes`,
+    `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/settings/discounts?updateMask.fieldPaths=codes&key=AIzaSyAhd2t2lx8ooUYEdlll2V0YLSCq3QgOK2k`,
     {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },

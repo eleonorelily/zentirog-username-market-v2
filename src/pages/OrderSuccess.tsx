@@ -1,9 +1,46 @@
+import { useEffect, useState } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 
 const OrderSuccess = () => {
   const [searchParams] = useSearchParams();
   const orderId = searchParams.get('order_id') || 'ORD-REFERENCE';
   const handle = searchParams.get('handle') || 'Discord Handle';
+  const token = searchParams.get('token') || '';
+
+  const [credentials, setCredentials] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(Boolean(token));
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    if (!token) return;
+
+    const fetchDetails = async () => {
+      try {
+        const res = await fetch(`/api/order-details?order_id=${encodeURIComponent(orderId)}&handle=${encodeURIComponent(handle)}&token=${encodeURIComponent(token)}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.credentials) {
+            setCredentials(data.credentials);
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching order details:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    void fetchDetails();
+  }, [orderId, handle, token]);
+
+  const handleCopyCredentials = () => {
+    if (!credentials) return;
+    navigator.clipboard.writeText(credentials);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const hasCredentials = Boolean(credentials && credentials.trim().length > 0);
 
   return (
     <div className="min-h-screen bg-[#090a0d] text-[#eaebee] flex items-center justify-center p-4 sm:p-6 font-sans">
@@ -42,10 +79,45 @@ const OrderSuccess = () => {
               Delivery
             </div>
             <div className="text-xs font-mono text-[#d4af37] font-semibold mt-1">
-              Sent to Your Email
+              Dispatched to Email & Below
             </div>
           </div>
         </div>
+
+        {/* Live On-Screen Credentials Card */}
+        {isLoading ? (
+          <div className="border border-[#2c303c] bg-[#12141c] p-5 text-center text-xs font-mono text-neutral-400">
+            Decentralized security handshake in progress...
+          </div>
+        ) : hasCredentials ? (
+          <div className="border border-[#383d4e] bg-[#12141c] p-5 space-y-3">
+            <div className="flex items-center justify-between border-b border-[#202228] pb-2.5">
+              <span className="text-xs font-mono font-bold uppercase tracking-wider text-[#d4af37]">
+                Account Credentials
+              </span>
+              <button
+                onClick={handleCopyCredentials}
+                className="px-2.5 py-1 text-[11px] font-mono font-bold uppercase tracking-wider border border-[#d4af37] bg-[#d4af37] hover:bg-[#e2bd45] text-[#090a0d] transition-colors"
+              >
+                {copied ? 'Copied!' : 'Copy Credentials'}
+              </button>
+            </div>
+            <div className="p-3 border border-[#23252d] bg-[#08090b]">
+              <pre className="font-mono text-sm text-white font-semibold whitespace-pre-wrap break-all select-all m-0">
+                {credentials}
+              </pre>
+            </div>
+          </div>
+        ) : (
+          <div className="border border-[#382b18] bg-[#161209] p-4 text-xs text-[#d8cbb1] space-y-2">
+            <div className="font-mono font-bold text-[#d4af37] text-[10px] uppercase tracking-wider">
+              Cold Storage Vault Notice
+            </div>
+            <p className="text-[11px] leading-relaxed text-neutral-300">
+              This handle was secured in offline cold storage. Please open a ticket on Discord and provide Order ID <strong className="text-white font-mono">{orderId}</strong> for immediate manual delivery from the owner.
+            </p>
+          </div>
+        )}
 
         {/* Access Instructions Card */}
         <div className="border border-[#2b2d38] bg-[#12141a] p-5 space-y-4">
@@ -103,16 +175,6 @@ const OrderSuccess = () => {
               </p>
             </div>
           </div>
-        </div>
-
-        {/* Cold Storage / No credentials note */}
-        <div className="border border-[#382b18] bg-[#161209] p-4 text-xs text-[#d8cbb1] space-y-1.5">
-          <div className="font-mono font-bold text-[#d4af37] text-[10px] uppercase tracking-wider">
-            Cold Storage Inventory Notice
-          </div>
-          <p className="text-[11px] leading-relaxed text-neutral-300">
-            If your email notification mentions that the handle was held in offline cold storage (or if you purchased before credentials were uploaded), please open a ticket on Discord and provide Order ID <strong className="text-white font-mono">{orderId}</strong> for instant transfer.
-          </p>
         </div>
 
         {/* Actions */}

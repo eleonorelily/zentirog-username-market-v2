@@ -55,13 +55,25 @@ service cloud.firestore {
       allow list: if isAdmin() || resource.data.public == true;
       allow get: if isAdmin() || resource.data.public == true;
       allow create: if isAdmin() && usernameShape(request.resource.data);
-      allow update: if isAdmin() && usernameShape(request.resource.data);
+      allow update: if (isAdmin() && usernameShape(request.resource.data))
+        || (
+          // Allow serverless order fulfillment to mark a username as sold
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isSold', 'price'])
+          && request.resource.data.isSold == true
+          && resource.data.isSold == false
+          && (request.resource.data.price == 'SOLD' || request.resource.data.price == 'CLAIMED')
+        );
       allow delete: if isAdmin();
     }
 
     match /settings/{settingId} {
       allow read: if settingId == 'config' || settingId == 'discounts';
-      allow write: if isAdmin();
+      allow write: if isAdmin()
+        || (
+          // Allow serverless checkout to increment usedCount on discounts
+          settingId == 'discounts'
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['codes', 'updatedAt', 'updatedAtServer'])
+        );
     }
 
     match /{document=**} {
@@ -69,4 +81,3 @@ service cloud.firestore {
     }
   }
 }
-

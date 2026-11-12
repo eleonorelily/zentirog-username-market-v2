@@ -156,13 +156,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const protocol = req.headers['x-forwarded-proto'] || 'https';
     const baseUrl = `${protocol}://${host}`;
 
+    // Generate secure HMAC token for viewing order details
+    const orderToken = crypto
+      .createHmac('sha256', CRYPTOMUS_PAYMENT_KEY || 'default_secret_key_zentirog_vault_2026')
+      .update(`${orderId}:${actualUsername}`)
+      .digest('hex');
+
     // 3. CASE: 100% DISCOUNT (FREE) -> Instant fulfillment without payment gateway
     if (finalAmount <= 0) {
       // Mark as sold in Firestore
       if (firestoreDocId) {
         try {
-          await fetch(
-            `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/usernames/${firestoreDocId}?updateMask.fieldPaths=isSold&updateMask.fieldPaths=price`,
+          const resPatch = await fetch(
+            `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/usernames/${firestoreDocId}?updateMask.fieldPaths=isSold&updateMask.fieldPaths=price&key=AIzaSyAhd2t2lx8ooUYEdlll2V0YLSCq3QgOK2k`,
             {
               method: 'PATCH',
               headers: { 'Content-Type': 'application/json' },
@@ -174,6 +180,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               }),
             }
           );
+          if (!resPatch.ok) {
+            console.error('Failed to patch username as sold:', await resPatch.text());
+          }
         } catch (dbErr) {
           console.error('Failed to update Firestore on 100% discount:', dbErr);
         }
@@ -202,7 +211,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         success: true,
         orderId,
         isFreeOrder: true,
-        redirectUrl: `${baseUrl}/order-success?order_id=${orderId}&handle=${encodeURIComponent(actualUsername)}`,
+        redirectUrl: `${baseUrl}/order-success?order_id=${orderId}&handle=${encodeURIComponent(actualUsername)}&token=${orderToken}`,
       });
     }
 
@@ -211,7 +220,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       amount: finalAmount.toFixed(2),
       currency: 'USD',
       order_id: orderId,
-      url_return: `${baseUrl}/order-success?order_id=${orderId}&handle=${encodeURIComponent(actualUsername)}`,
+      url_return: `${baseUrl}/order-success?order_id=${orderId}&handle=${encodeURIComponent(actualUsername)}&token=${orderToken}`,
       url_callback: `${baseUrl}/api/cryptomus-webhook`,
       is_payment_multiple: false,
       lifetime: 3600,
@@ -267,7 +276,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
 async function incrementDiscountUsage(codeToIncrement: string) {
   const discountsRes = await fetch(
-    `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/settings/discounts`
+    `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/settings/discounts?key=AIzaSyAhd2t2lx8ooUYEdlll2V0YLSCq3QgOK2k`
   );
   if (!discountsRes.ok) return;
   const discountsJson = await discountsRes.json();
@@ -291,7 +300,7 @@ async function incrementDiscountUsage(codeToIncrement: string) {
   });
 
   await fetch(
-    `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/settings/discounts?updateMask.fieldPaths=codes`,
+    `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/settings/discounts?updateMask.fieldPaths=codes&key=AIzaSyAhd2t2lx8ooUYEdlll2V0YLSCq3QgOK2k`,
     {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
