@@ -5,9 +5,11 @@ import {
   DEFAULT_DISCORD_LINK,
   fetchAdminUsernames,
   fetchAppSettings,
+  fetchDiscountCodes,
   removeUsername,
   replaceUsernameList,
   saveAppSettings,
+  saveDiscountCodes,
   saveUsername,
 } from '@/lib/usernameStore';
 import {
@@ -20,6 +22,7 @@ import {
   stripPricePrefix,
 } from '@/lib/usernameParser';
 import type { Username, UsernamePriority } from '@/types/username';
+import type { DiscountCode } from '@/types/discount';
 
 const blankUsername: Username = {
   username: '',
@@ -84,6 +87,14 @@ const Admin = () => {
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [settingsStatus, setSettingsStatus] = useState('');
 
+  // Discount Codes state
+  const [discountCodes, setDiscountCodes] = useState<DiscountCode[]>([]);
+  const [isSavingDiscounts, setIsSavingDiscounts] = useState(false);
+  const [discountStatus, setDiscountStatus] = useState('');
+  const [newCodeName, setNewCodeName] = useState('');
+  const [newCodePercent, setNewCodePercent] = useState('10');
+  const [newCodeMaxUses, setNewCodeMaxUses] = useState('0');
+
   useEffect(() => {
     return onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
@@ -95,12 +106,14 @@ const Admin = () => {
     setIsLoading(true);
     setStatus('');
     try {
-      const [list, settings] = await Promise.all([
+      const [list, settings, codes] = await Promise.all([
         fetchAdminUsernames(),
         fetchAppSettings(),
+        fetchDiscountCodes(),
       ]);
       setUsernames(list);
       setDiscordLinkInput(settings.discordServerLink || DEFAULT_DISCORD_LINK);
+      setDiscountCodes(codes);
       setStatus('Vault data & settings synchronized.');
     } catch (error) {
       setStatus(getAdminErrorMessage(error, 'Could not load vault data.'));
@@ -226,6 +239,84 @@ const Admin = () => {
       setSettingsStatus(getAdminErrorMessage(error, 'Could not update server link.'));
     } finally {
       setIsSavingSettings(false);
+    }
+  };
+
+  const handleAddDiscountCode = async (e: FormEvent) => {
+    e.preventDefault();
+    const code = newCodeName.trim().toUpperCase();
+    const percent = parseInt(newCodePercent, 10);
+    const maxUses = parseInt(newCodeMaxUses, 10) || 0;
+
+    if (!code) {
+      setDiscountStatus('Code name is required.');
+      return;
+    }
+    if (isNaN(percent) || percent < 1 || percent > 100) {
+      setDiscountStatus('Discount percent must be between 1 and 100.');
+      return;
+    }
+
+    if (discountCodes.some(c => c.code === code)) {
+      setDiscountStatus(`Discount code "${code}" already exists.`);
+      return;
+    }
+
+    const updated = [
+      ...discountCodes,
+      {
+        code,
+        discountPercent: percent,
+        maxUses,
+        usedCount: 0,
+        active: true,
+        createdAt: Date.now(),
+      },
+    ];
+
+    setIsSavingDiscounts(true);
+    setDiscountStatus('');
+    try {
+      await saveDiscountCodes(updated);
+      setDiscountCodes(updated);
+      setNewCodeName('');
+      setNewCodePercent('10');
+      setNewCodeMaxUses('0');
+      setDiscountStatus(`Code ${code} (${percent}% off) created.`);
+    } catch (err) {
+      setDiscountStatus(getAdminErrorMessage(err, 'Failed to create discount code.'));
+    } finally {
+      setIsSavingDiscounts(false);
+    }
+  };
+
+  const toggleDiscountActive = async (targetCode: string) => {
+    const updated = discountCodes.map(c =>
+      c.code === targetCode ? { ...c, active: !c.active } : c
+    );
+    setIsSavingDiscounts(true);
+    try {
+      await saveDiscountCodes(updated);
+      setDiscountCodes(updated);
+    } catch (err) {
+      setDiscountStatus(getAdminErrorMessage(err, 'Failed to update code status.'));
+    } finally {
+      setIsSavingDiscounts(false);
+    }
+  };
+
+  const deleteDiscountCode = async (targetCode: string) => {
+    if (!window.confirm(`Delete discount code ${targetCode}?`)) return;
+    const updated = discountCodes.filter(c => c.code !== targetCode);
+    setIsSavingDiscounts(true);
+    try {
+      await saveDiscountCodes(updated);
+      setDiscountCodes(updated);
+      setDiscountStatus(`Deleted promo code ${targetCode}.`);
+    } catch (err) {
+      setDiscountStatus(getAdminErrorMessage(err, 'Failed to delete code.'));
+    } finally {
+      setIsSavingDiscounts(false);
     }
   };
 
@@ -567,6 +658,124 @@ const Admin = () => {
               </button>
             </div>
           </form>
+        </div>
+
+        {/* Promo & Discount Engine */}
+        <div className="border border-[#202228] bg-[#101115] p-4 sm:p-5 space-y-4">
+          <div className="flex items-center justify-between border-b border-[#1c1e24] pb-3">
+            <div>
+              <span className="text-[10px] font-mono uppercase tracking-widest text-[#d4af37]">
+                Promo & Discount Engine
+              </span>
+              <h3 className="text-sm font-mono font-bold uppercase text-white mt-0.5">
+                Manage Marketplace Discount Codes
+              </h3>
+            </div>
+            {discountStatus && (
+              <span className="text-xs font-mono text-[#d4af37]">{discountStatus}</span>
+            )}
+          </div>
+
+          {/* Add Code Form */}
+          <form onSubmit={handleAddDiscountCode} className="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
+            <div>
+              <label className="block text-[10px] font-mono uppercase text-neutral-400 mb-1">
+                Code Name
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. VIP100"
+                value={newCodeName}
+                onChange={(e) => setNewCodeName(e.target.value)}
+                className="w-full bg-[#0d0e12] border border-[#23252c] focus:border-[#d4af37] text-white px-3 py-2 text-xs font-mono uppercase outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] font-mono uppercase text-neutral-400 mb-1">
+                Discount % (1-100)
+              </label>
+              <input
+                type="number"
+                min="1"
+                max="100"
+                placeholder="100"
+                value={newCodePercent}
+                onChange={(e) => setNewCodePercent(e.target.value)}
+                className="w-full bg-[#0d0e12] border border-[#23252c] focus:border-[#d4af37] text-white px-3 py-2 text-xs font-mono outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] font-mono uppercase text-neutral-400 mb-1">
+                Max Uses (0 = Unlimited)
+              </label>
+              <input
+                type="number"
+                min="0"
+                placeholder="0"
+                value={newCodeMaxUses}
+                onChange={(e) => setNewCodeMaxUses(e.target.value)}
+                className="w-full bg-[#0d0e12] border border-[#23252c] focus:border-[#d4af37] text-white px-3 py-2 text-xs font-mono outline-none"
+              />
+            </div>
+            <div>
+              <button
+                type="submit"
+                disabled={isSavingDiscounts}
+                className="w-full py-2 bg-[#d4af37] hover:bg-[#e2bd45] text-[#090a0d] font-mono font-bold text-xs uppercase tracking-wider transition-colors"
+              >
+                {isSavingDiscounts ? 'Creating...' : '+ Create Code'}
+              </button>
+            </div>
+          </form>
+
+          {/* List of active codes */}
+          <div className="border border-[#1e2027] bg-[#0c0d10] divide-y divide-[#181a20]">
+            {discountCodes.length === 0 ? (
+              <div className="p-4 text-xs font-mono text-neutral-500 text-center">
+                No custom discount codes created yet. Add one above (e.g. 100% off code for testing).
+              </div>
+            ) : (
+              discountCodes.map((codeItem) => (
+                <div
+                  key={codeItem.code}
+                  className="p-3 flex items-center justify-between gap-3 text-xs font-mono"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="font-bold text-white text-sm tracking-wide">
+                      {codeItem.code}
+                    </span>
+                    <span className="px-2 py-0.5 border border-[#d4af37]/40 bg-[#d4af37]/10 text-[#d4af37] font-bold">
+                      {codeItem.discountPercent}% OFF
+                    </span>
+                    <span className="text-neutral-400 text-[11px]">
+                      Uses: {codeItem.usedCount} / {codeItem.maxUses === 0 ? '∞' : codeItem.maxUses}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => toggleDiscountActive(codeItem.code)}
+                      className={`px-2.5 py-1 text-[11px] border uppercase ${
+                        codeItem.active
+                          ? 'border-emerald-500/40 text-emerald-400 bg-emerald-950/20'
+                          : 'border-neutral-700 text-neutral-500 bg-black/40'
+                      }`}
+                    >
+                      {codeItem.active ? 'Active' : 'Paused'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => deleteDiscountCode(codeItem.code)}
+                      className="px-2 py-1 text-[11px] border border-rose-900/40 text-rose-400 hover:text-white hover:bg-rose-950/40 transition-colors"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
         </div>
 
         {/* Featured Showcase Quick Bar */}

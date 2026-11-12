@@ -154,3 +154,34 @@ export const saveAppSettings = async (settings: AppSettings): Promise<void> => {
   await setDoc(doc(db, 'settings', 'config'), payload, { merge: true });
 };
 
+export const fetchDiscountCodes = async (): Promise<import('@/types/discount').DiscountCode[]> => {
+  try {
+    const discountsDoc = await getDoc(doc(db, 'settings', 'discounts'));
+    if (discountsDoc.exists()) {
+      const data = discountsDoc.data();
+      const list = Array.isArray(data.codes) ? data.codes : [];
+      return list as import('@/types/discount').DiscountCode[];
+    }
+  } catch (error) {
+    console.warn('Could not fetch discounts:', error);
+  }
+  return [];
+};
+
+export const saveDiscountCodes = async (codes: import('@/types/discount').DiscountCode[]): Promise<void> => {
+  const payload = {
+    codes: codes.map(c => ({
+      code: c.code.trim().toUpperCase(),
+      discountPercent: Math.max(1, Math.min(100, Number(c.discountPercent) || 0)),
+      maxUses: Math.max(0, Number(c.maxUses) || 0),
+      usedCount: Math.max(0, Number(c.usedCount) || 0),
+      active: Boolean(c.active),
+      createdAt: c.createdAt || Date.now(),
+    })),
+    updatedAt: Date.now(),
+    updatedAtServer: serverTimestamp(),
+  };
+  await setDoc(doc(db, 'settings', 'discounts'), payload, { merge: true });
+};
+
+
