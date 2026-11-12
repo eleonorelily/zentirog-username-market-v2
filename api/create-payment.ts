@@ -9,20 +9,6 @@ const resend = new Resend(RESEND_API_KEY);
 
 const FIREBASE_PROJECT_ID = 'zentirog-market-2026';
 
-// In-memory IP rate limiter (sliding window, max 10 requests / min / IP)
-const ipCache = new Map<string, number[]>();
-function isRateLimited(ip: string, max = 10, windowMs = 60000): boolean {
-  const now = Date.now();
-  const times = (ipCache.get(ip) || []).filter(t => now - t < windowMs);
-  if (times.length >= max) {
-    ipCache.set(ip, times);
-    return true;
-  }
-  times.push(now);
-  ipCache.set(ip, times);
-  return false;
-}
-
 // Helper to extract clean USD price from handle price string
 function parsePriceToNumber(rawPrice: string): number {
   if (!rawPrice || rawPrice === 'SOLD') return 0;
@@ -37,12 +23,6 @@ function parsePriceToNumber(rawPrice: string): number {
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method Not Allowed' });
-  }
-
-  // IP Rate limiting
-  const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.socket.remoteAddress || 'unknown';
-  if (isRateLimited(clientIp, 10, 60000)) {
-    return res.status(429).json({ error: 'Too many requests. Please wait 1 minute before trying again.' });
   }
 
   try {
@@ -65,7 +45,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (usernameId) {
       const docRes = await fetch(
-        `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/usernames/${usernameId}?key=AIzaSyAhd2t2lx8ooUYEdlll2V0YLSCq3QgOK2k`
+        `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/usernames/${usernameId}`
       );
       if (docRes.ok) {
         const docJson = await docRes.json();
@@ -81,7 +61,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       // Fallback query by username if usernameId was omitted
       const cleanHandle = username.startsWith('@') ? username : `@${username}`;
       const queryRes = await fetch(
-        `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents:runQuery?key=AIzaSyAhd2t2lx8ooUYEdlll2V0YLSCq3QgOK2k`,
+        `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents:runQuery`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -89,24 +69,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             structuredQuery: {
               from: [{ collectionId: 'usernames' }],
               where: {
-                compositeFilter: {
-                  op: 'AND',
-                  filters: [
-                    {
-                      fieldFilter: {
-                        field: { fieldPath: 'username' },
-                        op: 'EQUAL',
-                        value: { stringValue: cleanHandle },
-                      },
-                    },
-                    {
-                      fieldFilter: {
-                        field: { fieldPath: 'public' },
-                        op: 'EQUAL',
-                        value: { booleanValue: true },
-                      },
-                    },
-                  ],
+                fieldFilter: {
+                  field: { fieldPath: 'username' },
+                  op: 'EQUAL',
+                  value: { stringValue: cleanHandle },
                 },
               },
               limit: 1,
