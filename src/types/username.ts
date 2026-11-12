@@ -6,6 +6,7 @@ export interface Username {
   price: string;
   description: string;
   category: string;
+  credentials?: string;
   isNew: boolean;
   isHot: boolean;
   isSold: boolean;

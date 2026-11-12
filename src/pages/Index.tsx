@@ -7,6 +7,7 @@ import { Navbar } from '@/components/Navbar';
 import { CatalogFilters, type SortType } from '@/components/CatalogFilters';
 import { UsernameItem } from '@/components/UsernameItem';
 import { HandleDetailModal } from '@/components/HandleDetailModal';
+import { CheckoutModal } from '@/components/CheckoutModal';
 import { LegalModal } from '@/components/LegalModal';
 import { SkeletonLoader } from '@/components/SkeletonLoader';
 
@@ -51,6 +52,7 @@ const Index = () => {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [hideSold, setHideSold] = useState(false);
   const [selectedItem, setSelectedItem] = useState<Username | null>(null);
+  const [checkoutItem, setCheckoutItem] = useState<Username | null>(null);
   const [legalModalOpen, setLegalModalOpen] = useState(false);
   const [legalTab, setLegalTab] = useState<'tos' | 'privacy'>('tos');
 
@@ -397,7 +399,15 @@ const Index = () => {
       <HandleDetailModal
         username={selectedItem}
         onClose={() => setSelectedItem(null)}
+        onOpenCheckout={(item) => setCheckoutItem(item)}
         discordLink={discordLink}
+      />
+
+      {/* Instant Crypto Checkout Modal */}
+      <CheckoutModal
+        isOpen={Boolean(checkoutItem)}
+        onClose={() => setCheckoutItem(null)}
+        username={checkoutItem}
       />
 
       {/* Modal for Terms & Privacy */}

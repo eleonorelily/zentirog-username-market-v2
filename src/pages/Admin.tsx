@@ -26,6 +26,7 @@ const blankUsername: Username = {
   price: '',
   description: '',
   category: 'Semi usernames',
+  credentials: '',
   isNew: false,
   isHot: false,
   isSold: false,
@@ -699,10 +700,27 @@ const Admin = () => {
                   id="input-desc"
                   value={form.description}
                   onChange={(e) => setForm((c) => ({ ...c, description: e.target.value }))}
-                  rows={3}
+                  rows={2}
                   placeholder="Notes on rarity, character set, or account status..."
                   className="w-full bg-[#0d0e12] border border-[#23252c] focus:border-[#d4af37] text-white px-3 py-2 text-xs font-sans focus:outline-none resize-y"
                 />
+              </div>
+
+              <div>
+                <label className="block text-xs font-mono uppercase tracking-wider text-[#d4af37] mb-1" htmlFor="input-creds">
+                  Account Credentials (Auto-dispatched via Email on purchase)
+                </label>
+                <textarea
+                  id="input-creds"
+                  value={form.credentials || ''}
+                  onChange={(e) => setForm((c) => ({ ...c, credentials: e.target.value }))}
+                  rows={2}
+                  placeholder="email:password:2fa or token"
+                  className="w-full bg-[#0d0e12] border border-[#23252c] focus:border-[#d4af37] text-white px-3 py-2 text-xs font-mono focus:outline-none resize-y"
+                />
+                <p className="text-[10px] text-neutral-400 font-mono mt-1">
+                  Private to admin. Released to customer inbox upon verified Cryptomus transaction.
+                </p>
               </div>
 
               <div className="grid grid-cols-2 gap-2">

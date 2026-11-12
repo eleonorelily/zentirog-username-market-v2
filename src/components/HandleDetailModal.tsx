@@ -4,12 +4,14 @@ import type { Username } from '@/types/username';
 interface HandleDetailModalProps {
   username: Username | null;
   onClose: () => void;
+  onOpenCheckout?: (username: Username) => void;
   discordLink: string;
 }
 
 export const HandleDetailModal: React.FC<HandleDetailModalProps> = ({
   username,
   onClose,
+  onOpenCheckout,
   discordLink,
 }) => {
   const [copied, setCopied] = useState(false);
@@ -192,14 +194,27 @@ export const HandleDetailModal: React.FC<HandleDetailModalProps> = ({
               Identifier Claimed
             </button>
           ) : (
-            <a
-              href={discordLink}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="px-6 py-3 bg-[#d4af37] hover:bg-[#e2bd45] text-[#090a0d] font-mono font-bold text-xs uppercase tracking-wider transition-colors inline-flex items-center justify-center shrink-0"
-            >
-              Inquire via Discord
-            </a>
+            <div className="flex items-center gap-2">
+              {onOpenCheckout && (
+                <button
+                  onClick={() => {
+                    onClose();
+                    onOpenCheckout(username);
+                  }}
+                  className="px-4 py-3 bg-[#d4af37] hover:bg-[#e2bd45] text-[#090a0d] font-mono font-bold text-xs uppercase tracking-wider transition-colors inline-flex items-center justify-center shrink-0"
+                >
+                  Instant Crypto Checkout
+                </button>
+              )}
+              <a
+                href={discordLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-4 py-3 bg-[#181a22] hover:bg-[#222530] text-neutral-200 border border-[#2c303c] font-mono font-bold text-xs uppercase tracking-wider transition-colors inline-flex items-center justify-center shrink-0"
+              >
+                Inquire on Discord
+              </a>
+            </div>
           )}
         </div>
       </div>

@@ -20,6 +20,7 @@ service cloud.firestore {
         'price',
         'description',
         'category',
+        'credentials',
         'isNew',
         'isHot',
         'isSold',
@@ -36,6 +37,7 @@ service cloud.firestore {
       && data.price is string
       && data.description is string
       && data.category is string
+      && (!('credentials' in data) || data.credentials is string)
       && data.isNew is bool
       && data.isHot is bool
       && data.isSold is bool
@@ -51,8 +53,8 @@ service cloud.firestore {
     match /usernames/{usernameId} {
       allow list: if isAdmin() || resource.data.public == true;
       allow get: if isAdmin() || resource.data.public == true;
-      allow create: if isAdmin();
-      allow update: if isAdmin();
+      allow create: if isAdmin() && usernameShape(request.resource.data);
+      allow update: if isAdmin() && usernameShape(request.resource.data);
       allow delete: if isAdmin();
     }
 
