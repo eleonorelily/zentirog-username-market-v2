@@ -4,6 +4,7 @@ import { Resend } from 'resend';
 
 const CRYPTOMUS_PAYMENT_KEY = process.env.CRYPTOMUS_PAYMENT_KEY || '';
 const RESEND_API_KEY = process.env.RESEND_API_KEY || '';
+const DISCORD_SALES_WEBHOOK = process.env.DISCORD_SALES_WEBHOOK || '';
 const resend = new Resend(RESEND_API_KEY);
 
 const FIREBASE_PROJECT_ID = 'zentirog-market-2026';
@@ -54,7 +55,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       console.error('Failed to parse additional_data:', e);
     }
 
-    const { usernameId, username, customerEmail, discountCode } = additionalData;
+    const { usernameId, username, customerEmail, customerDiscord, discountCode } = additionalData;
     const orderId = rawBody.order_id || 'UNKNOWN';
     const amountPaid = rawBody.amount || '0.00';
     const currency = rawBody.currency || 'USD';
@@ -110,6 +111,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         credentials: accountCredentials,
       });
     }
+
+    // Dispatch Discord Webhook Notification
+    await sendDiscordSaleNotification({
+      orderId,
+      username: username || 'Unknown Identifier',
+      customerEmail: customerEmail || '',
+      customerDiscord: customerDiscord ? String(customerDiscord).trim() : '',
+      amount: amountPaid,
+      currency,
+      discountCode: discountCode || '',
+      isDelivered: Boolean(accountCredentials && accountCredentials.trim()),
+      paymentMethod: 'CRYPTOMUS GATEWAY',
+    });
 
     return res.status(200).json({ success: true, message: 'Payment processed and email dispatched.' });
   } catch (error: any) {
@@ -275,5 +289,98 @@ async function dispatchDeliveryEmail(params: {
     });
   } catch (err) {
     console.error('Failed to send Resend email in webhook:', err);
+  }
+}
+
+async function sendDiscordSaleNotification({
+  orderId,
+  username,
+  customerEmail,
+  customerDiscord,
+  amount,
+  currency,
+  discountCode,
+  isDelivered,
+  paymentMethod,
+}: {
+  orderId: string;
+  username: string;
+  customerEmail: string;
+  customerDiscord?: string;
+  amount: string;
+  currency: string;
+  discountCode?: string;
+  isDelivered: boolean;
+  paymentMethod: string;
+}) {
+  if (!DISCORD_SALES_WEBHOOK) {
+    console.warn('DISCORD_SALES_WEBHOOK is not configured in environment variables.');
+    return;
+  }
+
+  try {
+    const embed = {
+      title: '⚡ NEW VAULT PURCHASE SUCCESSFUL',
+      description: `Target Identifier **${username}** has been secured!`,
+      color: 0xd4af37, // Luxury Gold
+      fields: [
+        {
+          name: '🎯 Username / Identifier',
+          value: `\`${username}\``,
+          inline: true,
+        },
+        {
+          name: '💰 Amount Paid',
+          value: `**$${amount} ${currency}**${discountCode ? ` *(Code: \`${discountCode}\`)*` : ''}`,
+          inline: true,
+        },
+        {
+          name: '💳 Method',
+          value: paymentMethod,
+          inline: true,
+        },
+        {
+          name: '📧 Customer Email',
+          value: customerEmail ? `\`${customerEmail}\`` : '*Not provided*',
+          inline: true,
+        },
+        {
+          name: '💬 Customer Discord',
+          value: customerDiscord ? `**${customerDiscord}**` : '*Not provided*',
+          inline: true,
+        },
+        {
+          name: '📦 Fulfillment Status',
+          value: isDelivered
+            ? '✅ **Delivered Instantly** (Email & Screen)'
+            : '⏳ **Manual Cold Storage Ticket Required**',
+          inline: true,
+        },
+        {
+          name: '🧾 Order ID',
+          value: `\`${orderId}\``,
+          inline: false,
+        },
+      ],
+      footer: {
+        text: 'Zentirog Automated Sales System • users.zentirog.lol',
+      },
+      timestamp: new Date().toISOString(),
+    };
+
+    const webhookResponse = await fetch(DISCORD_SALES_WEBHOOK, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        content: '@everyone 🚨 **New Username Purchase Confirmed!**',
+        embeds: [embed],
+      }),
+    });
+
+    if (!webhookResponse.ok) {
+      console.error('Discord webhook dispatch failed:', await webhookResponse.text());
+    }
+  } catch (err) {
+    console.error('Error dispatching Discord webhook:', err);
   }
 }

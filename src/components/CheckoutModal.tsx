@@ -15,6 +15,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   discordLink = 'https://discord.gg/5WC6sH2rrj',
 }) => {
   const [email, setEmail] = useState('');
+  const [discordUsername, setDiscordUsername] = useState('');
   const [discountCodeInput, setDiscountCodeInput] = useState('');
   const [appliedDiscount, setAppliedDiscount] = useState<{
     code: string;
@@ -127,6 +128,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
           username: username.username,
           amount: `$${basePriceNum.toFixed(2)}`,
           customerEmail: email.trim(),
+          customerDiscord: discordUsername.trim(),
           discountCode: appliedDiscount?.code || '',
         }),
       });
@@ -221,6 +223,28 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               />
               <p className="mt-1 text-[11px] text-neutral-400">
                 Your login credentials will be dispatched automatically to this address once verified.
+              </p>
+            </div>
+
+            {/* Optional Discord Username Input */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-mono uppercase tracking-wider text-neutral-300">
+                  Discord Username
+                </label>
+                <span className="text-[10px] font-mono uppercase tracking-wider text-neutral-500">
+                  Optional
+                </span>
+              </div>
+              <input
+                type="text"
+                value={discordUsername}
+                onChange={(e) => setDiscordUsername(e.target.value)}
+                placeholder="e.g. zentirog or username#0000"
+                className="w-full bg-[#0a0b0e] border border-[#2c2f3a] focus:border-[#d4af37] px-3.5 py-2.5 text-sm font-mono text-white outline-none transition-colors"
+              />
+              <p className="mt-1 text-[11px] text-neutral-400">
+                Provide your Discord handle for buyer role / priority support updates.
               </p>
             </div>
 

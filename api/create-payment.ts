@@ -5,6 +5,7 @@ import { Resend } from 'resend';
 const CRYPTOMUS_MERCHANT_ID = process.env.CRYPTOMUS_MERCHANT_ID || '';
 const CRYPTOMUS_PAYMENT_KEY = process.env.CRYPTOMUS_PAYMENT_KEY || '';
 const RESEND_API_KEY = process.env.RESEND_API_KEY || '';
+const DISCORD_SALES_WEBHOOK = process.env.DISCORD_SALES_WEBHOOK || '';
 const resend = new Resend(RESEND_API_KEY);
 
 const FIREBASE_PROJECT_ID = 'zentirog-market-2026';
@@ -26,7 +27,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const { usernameId, username, customerEmail, discountCode } = req.body;
+    const { usernameId, username, customerEmail, customerDiscord, discountCode } = req.body;
 
     if (!username || !customerEmail) {
       return res.status(400).json({ error: 'Missing required checkout parameters.' });
@@ -222,6 +223,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         credentials,
       });
 
+      // Dispatch Discord Webhook Notification
+      await sendDiscordSaleNotification({
+        orderId,
+        username: actualUsername,
+        customerEmail,
+        customerDiscord: customerDiscord?.trim() || '',
+        amount: '0.00',
+        currency: 'USD',
+        discountCode: appliedCode || '100% Promo',
+        isDelivered: Boolean(credentials && credentials.trim()),
+        paymentMethod: 'PROMO / FREE CLAIM',
+      });
+
       return res.status(200).json({
         success: true,
         orderId,
@@ -243,6 +257,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         usernameId: firestoreDocId || usernameId || '',
         username: actualUsername,
         customerEmail: customerEmail.trim().toLowerCase(),
+        customerDiscord: customerDiscord ? customerDiscord.trim() : '',
         discountCode: appliedCode || '',
         originalPrice: realPrice.toFixed(2),
         discountPercent: appliedDiscountPercent,
@@ -446,5 +461,98 @@ async function dispatchDeliveryEmail(params: {
     });
   } catch (err) {
     console.error('Failed to send Resend email in create-payment:', err);
+  }
+}
+
+async function sendDiscordSaleNotification({
+  orderId,
+  username,
+  customerEmail,
+  customerDiscord,
+  amount,
+  currency,
+  discountCode,
+  isDelivered,
+  paymentMethod,
+}: {
+  orderId: string;
+  username: string;
+  customerEmail: string;
+  customerDiscord?: string;
+  amount: string;
+  currency: string;
+  discountCode?: string;
+  isDelivered: boolean;
+  paymentMethod: string;
+}) {
+  if (!DISCORD_SALES_WEBHOOK) {
+    console.warn('DISCORD_SALES_WEBHOOK is not configured in environment variables.');
+    return;
+  }
+
+  try {
+    const embed = {
+      title: '⚡ NEW VAULT PURCHASE SUCCESSFUL',
+      description: `Target Identifier **${username}** has been secured!`,
+      color: 0xd4af37, // Luxury Gold
+      fields: [
+        {
+          name: '🎯 Username / Identifier',
+          value: `\`${username}\``,
+          inline: true,
+        },
+        {
+          name: '💰 Amount Paid',
+          value: `**$${amount} ${currency}**${discountCode ? ` *(Code: \`${discountCode}\`)*` : ''}`,
+          inline: true,
+        },
+        {
+          name: '💳 Method',
+          value: paymentMethod,
+          inline: true,
+        },
+        {
+          name: '📧 Customer Email',
+          value: customerEmail ? `\`${customerEmail}\`` : '*Not provided*',
+          inline: true,
+        },
+        {
+          name: '💬 Customer Discord',
+          value: customerDiscord ? `**${customerDiscord}**` : '*Not provided*',
+          inline: true,
+        },
+        {
+          name: '📦 Fulfillment Status',
+          value: isDelivered
+            ? '✅ **Delivered Instantly** (Email & Screen)'
+            : '⏳ **Manual Cold Storage Ticket Required**',
+          inline: true,
+        },
+        {
+          name: '🧾 Order ID',
+          value: `\`${orderId}\``,
+          inline: false,
+        },
+      ],
+      footer: {
+        text: 'Zentirog Automated Sales System • users.zentirog.lol',
+      },
+      timestamp: new Date().toISOString(),
+    };
+
+    const webhookResponse = await fetch(DISCORD_SALES_WEBHOOK, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        content: '@everyone 🚨 **New Username Purchase Confirmed!**',
+        embeds: [embed],
+      }),
+    });
+
+    if (!webhookResponse.ok) {
+      console.error('Discord webhook dispatch failed:', await webhookResponse.text());
+    }
+  } catch (err) {
+    console.error('Error dispatching Discord webhook:', err);
   }
 }
