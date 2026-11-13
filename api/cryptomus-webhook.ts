@@ -30,7 +30,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .update(Buffer.from(jsonString).toString('base64') + CRYPTOMUS_PAYMENT_KEY)
       .digest('hex');
 
-    if (receivedSign && receivedSign !== expectedSign) {
+    if (!receivedSign) {
+      console.warn('Cryptomus webhook missing signature header');
+      return res.status(401).json({ error: 'Missing signature' });
+    }
+
+    if (!CRYPTOMUS_PAYMENT_KEY) {
+      console.error('CRYPTOMUS_PAYMENT_KEY is not configured on server');
+      return res.status(500).json({ error: 'Gateway configuration error' });
+    }
+
+    if (receivedSign !== expectedSign) {
       console.warn('Cryptomus signature mismatch:', { received: receivedSign, expected: expectedSign });
       return res.status(401).json({ error: 'Signature mismatch' });
     }
