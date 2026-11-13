@@ -170,37 +170,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (discountCode && typeof discountCode === 'string' && discountCode.trim()) {
       const codeToTest = discountCode.trim().toUpperCase();
       try {
-        const discountsRes = await fetch(
-          `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/settings/discounts`
-        );
-        if (discountsRes.ok) {
-          const discountsJson = await discountsRes.json();
-          const codesList = discountsJson.fields?.codes?.arrayValue?.values || [];
-          
-          for (const item of codesList) {
-            const map = item.mapValue?.fields || {};
-            const codeStr = (map.code?.stringValue || '').toUpperCase();
-            const active = map.active?.booleanValue ?? true;
-            const maxUses = Number(map.maxUses?.integerValue ?? 0);
-            const usedCount = Number(map.usedCount?.integerValue ?? 0);
-            const percent = Number(map.discountPercent?.integerValue ?? 0);
+        const db = await getMongoDatabase();
+        const discountDoc = await db.collection('settings').findOne({ _id: 'discounts' as any });
+        const codesList = Array.isArray(discountDoc?.codes) ? discountDoc.codes : [];
 
-            if (codeStr === codeToTest && active) {
-              if (maxUses > 0 && usedCount >= maxUses) {
-                return res.status(400).json({ error: `Discount code ${codeToTest} has reached its maximum usage limit.` });
-              }
-              appliedDiscountPercent = Math.min(100, Math.max(1, percent));
-              appliedCode = codeToTest;
-              break;
+        for (const item of codesList) {
+          const codeStr = (item.code || '').toUpperCase();
+          const active = item.active ?? true;
+          const maxUses = Number(item.maxUses || 0);
+          const usedCount = Number(item.usedCount || 0);
+          const percent = Number(item.discountPercent || 0);
+
+          if (codeStr === codeToTest && active) {
+            if (maxUses > 0 && usedCount >= maxUses) {
+              return res.status(400).json({ error: `Discount code ${codeToTest} has reached its maximum usage limit.` });
             }
-          }
-
-          if (discountCode && !appliedCode) {
-            return res.status(400).json({ error: `Invalid or expired discount code "${discountCode}".` });
+            appliedDiscountPercent = Math.min(100, Math.max(1, percent));
+            appliedCode = codeToTest;
+            break;
           }
         }
+
+        if (discountCode && !appliedCode) {
+          return res.status(400).json({ error: `Invalid or expired discount code "${discountCode}".` });
+        }
       } catch (err) {
-        console.warn('Error reading discounts:', err);
+        console.warn('Error reading discounts from MongoDB:', err);
       }
     }
 

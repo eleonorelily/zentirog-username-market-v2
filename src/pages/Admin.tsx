@@ -61,7 +61,7 @@ const buildRawUsernameList = (items: Username[]) => (
 const getAdminErrorMessage = (error: unknown, fallback: string) => {
   const message = error instanceof Error ? error.message : '';
   if (message.toLowerCase().includes('permission')) {
-    return 'Firestore rules are blocking this admin account. Check permissions for your admin UID.';
+    return 'Your admin account authentication was rejected. Check permissions for your admin UID.';
   }
   return message || fallback;
 };
