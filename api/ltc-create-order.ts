@@ -197,26 +197,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       finalAmount = Math.max(0, parseFloat(finalAmount.toFixed(2)));
     }
 
-    // Deterministic unique derivation index based on timestamp modulo
-    let derivationIndex = Math.floor(Date.now() / 1000) % 20000;
-    try {
-      const counterRes = await fetch(
-        `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/settings/ltc_orders?key=AIzaSyAhd2t2lx8ooUYEdlll2V0YLSCq3QgOK2k`
-      );
-      if (counterRes.ok) {
-        const cJson = await counterRes.json();
-        const currentIdx = Number(cJson.fields?.lastIndex?.integerValue ?? 0);
-        derivationIndex = currentIdx + 1;
-        await fetch(
-          `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/settings/ltc_orders?updateMask.fieldPaths=lastIndex&key=AIzaSyAhd2t2lx8ooUYEdlll2V0YLSCq3QgOK2k`,
-          {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ fields: { lastIndex: { integerValue: String(derivationIndex) } } }),
-          }
-        );
-      }
-    } catch {}
+    // BIP-44 address index derivation:
+    // Generate a secure progressive integer index based on seconds since epoch
+    // Offset by an epoch baseline so indices are compact and strictly monotonic
+    const epochBase = 1794548400; // current timestamp anchor
+    const derivationIndex = Math.max(1, Math.floor(Date.now() / 1000) - epochBase);
 
     const ltcDepositAddress = deriveLtcAddress(derivationIndex);
     const ltcPriceUsd = await getLiveLtcPriceInUsd();
@@ -278,7 +263,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       usdAmount: finalAmount,
       ltcAmount,
       ltcAddress: ltcDepositAddress,
-      qrValue: `litecoin:${ltcDepositAddress}?amount=${ltcAmount}&label=Zentirog%20Vault`,
+      qrValue: ltcDepositAddress,
       expiresInMinutes: 45,
     });
   } catch (error: any) {

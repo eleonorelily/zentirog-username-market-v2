@@ -15,7 +15,7 @@ interface CheckResult {
   txid?: string;
 }
 
-async function checkLtcAddressBlockchain(address: string): Promise<CheckResult> {
+async function checkLtcAddressBlockchain(address: string, orderCreatedAt?: number): Promise<CheckResult> {
   try {
     const url = `https://litecoinspace.org/api/address/${address}/txs`;
     const res = await fetch(url, { signal: AbortSignal.timeout(4000) });
@@ -26,7 +26,15 @@ async function checkLtcAddressBlockchain(address: string): Promise<CheckResult> 
         let isConfirmed = false;
         let latestTxid = txs[0].txid;
 
+        const minTimestamp = orderCreatedAt ? Math.floor(orderCreatedAt / 1000) - 300 : 0;
+
         for (const tx of txs) {
+          // If transaction occurred before the order was even created, ignore it
+          const txTime = tx.status?.block_time || Math.floor(Date.now() / 1000);
+          if (tx.status?.confirmed && txTime < minTimestamp) {
+            continue;
+          }
+
           if (tx.status?.confirmed) {
             isConfirmed = true;
           }
@@ -112,16 +120,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // If order was created during 429 quota and token wasn't cached yet, construct from verified parameters
     if (!orderData) {
-      orderData = {
-        orderId,
-        status: 'WAITING',
-        ltcAddress: fallbackAddress || '',
-        ltcAmount: Number(fallbackAmount || 0),
-        username: '',
-        customerEmail: '',
-        credentials: '',
-        usdAmount: 0,
-      };
+      // Security Check: If orderToken was tampered with or absent, do NOT trust unverified body credentials
+      return res.status(401).json({ error: 'Invalid or missing order token' });
     }
 
     const {
@@ -153,7 +153,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     // Check blockchain for transactions on this address
-    const check = await checkLtcAddressBlockchain(ltcAddress);
+    const check = await checkLtcAddressBlockchain(ltcAddress, orderData.createdAt);
 
     // Accept if received is at least 95% of expected
     const threshold = (ltcAmountExpected || 0) * 0.95;
