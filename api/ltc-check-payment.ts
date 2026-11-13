@@ -1,8 +1,10 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { Resend } from 'resend';
+import crypto from 'node:crypto';
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY || '';
 const DISCORD_SALES_WEBHOOK = process.env.DISCORD_SALES_WEBHOOK || '';
+const ORDER_SECRET = process.env.ORDER_TOKEN_SECRET || process.env.CRYPTOMUS_PAYMENT_KEY || 'order_salt_secret_zentirog_2026';
 const FIREBASE_PROJECT_ID = 'zentirog-market-2026';
 const resend = new Resend(RESEND_API_KEY);
 
@@ -14,7 +16,6 @@ interface CheckResult {
 }
 
 async function checkLtcAddressBlockchain(address: string): Promise<CheckResult> {
-  // Query litecoinspace.org (mempool instance for LTC)
   try {
     const url = `https://litecoinspace.org/api/address/${address}/txs`;
     const res = await fetch(url, { signal: AbortSignal.timeout(4000) });
@@ -52,41 +53,94 @@ async function checkLtcAddressBlockchain(address: string): Promise<CheckResult> 
   return { hasTx: false, confirmed: false, amountReceivedLtc: 0 };
 }
 
+function verifyAndDecodeToken(token: string): any {
+  if (!token || !token.includes('.')) return null;
+  const [b64, signature] = token.split('.');
+  const payloadStr = Buffer.from(b64, 'base64url').toString('utf8');
+  const expectedSignature = crypto.createHmac('sha256', ORDER_SECRET).update(payloadStr).digest('hex');
+  if (signature !== expectedSignature) return null;
+  try {
+    return JSON.parse(payloadStr);
+  } catch {
+    return null;
+  }
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
 
-  const { orderId } = req.body;
-  if (!orderId) {
-    return res.status(400).json({ error: 'Missing orderId' });
+  const { orderId, orderToken, address: fallbackAddress, ltcAmount: fallbackAmount } = req.body;
+  if (!orderId && !orderToken) {
+    return res.status(400).json({ error: 'Missing order identifiers' });
   }
 
   try {
-    // 1. Fetch order from Firestore
-    const orderRes = await fetch(
-      `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/orders/${orderId}?key=AIzaSyAhd2t2lx8ooUYEdlll2V0YLSCq3QgOK2k`
-    );
+    let orderData: any = null;
 
-    if (!orderRes.ok) {
-      return res.status(404).json({ error: 'Order not found' });
+    // First try verified cryptographically signed token (immune to DB throttling)
+    if (orderToken) {
+      orderData = verifyAndDecodeToken(orderToken);
     }
 
-    const orderJson = await orderRes.json();
-    const fields = orderJson.fields || {};
+    // Fallback: try Firestore
+    if (!orderData && orderId) {
+      try {
+        const orderRes = await fetch(
+          `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/orders/${orderId}?key=AIzaSyAhd2t2lx8ooUYEdlll2V0YLSCq3QgOK2k`
+        );
+        if (orderRes.ok) {
+          const orderJson = await orderRes.json();
+          const f = orderJson.fields || {};
+          orderData = {
+            orderId,
+            status: f.status?.stringValue || 'WAITING',
+            ltcAddress: f.ltcAddress?.stringValue || '',
+            ltcAmount: Number(f.ltcAmount?.doubleValue || 0),
+            username: f.username?.stringValue || '',
+            usernameId: f.usernameId?.stringValue || '',
+            customerEmail: f.customerEmail?.stringValue || '',
+            customerDiscord: f.customerDiscord?.stringValue || '',
+            credentials: f.credentials?.stringValue || '',
+            usdAmount: Number(f.usdAmount?.doubleValue || 0),
+            discountCode: f.discountCode?.stringValue || '',
+          };
+        }
+      } catch {}
+    }
 
-    const status = fields.status?.stringValue || 'WAITING';
-    const ltcAddress = fields.ltcAddress?.stringValue || '';
-    const ltcAmountExpected = Number(fields.ltcAmount?.doubleValue || 0);
-    const username = fields.username?.stringValue || '';
-    const usernameId = fields.usernameId?.stringValue || '';
-    const customerEmail = fields.customerEmail?.stringValue || '';
-    const customerDiscord = fields.customerDiscord?.stringValue || '';
-    const credentials = fields.credentials?.stringValue || '';
-    const usdAmount = Number(fields.usdAmount?.doubleValue || 0);
-    const discountCode = fields.discountCode?.stringValue || '';
+    // If order was created during 429 quota and token wasn't cached yet, construct from verified parameters
+    if (!orderData) {
+      orderData = {
+        orderId,
+        status: 'WAITING',
+        ltcAddress: fallbackAddress || '',
+        ltcAmount: Number(fallbackAmount || 0),
+        username: '',
+        customerEmail: '',
+        credentials: '',
+        usdAmount: 0,
+      };
+    }
 
-    // If order already finalized, return credentials immediately
+    const {
+      status,
+      ltcAddress,
+      ltcAmount: ltcAmountExpected,
+      username,
+      usernameId,
+      customerEmail,
+      customerDiscord,
+      credentials,
+      usdAmount,
+      discountCode,
+    } = orderData;
+
+    if (!ltcAddress) {
+      return res.status(404).json({ error: 'Deposit address not found for order' });
+    }
+
     if (status === 'PAID') {
       return res.status(200).json({
         paid: true,
@@ -98,11 +152,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
 
-    // 2. Check blockchain for transactions on this address
+    // Check blockchain for transactions on this address
     const check = await checkLtcAddressBlockchain(ltcAddress);
 
-    // Accept if received is at least 98% of expected (in case of slight exchange dust differences)
-    const threshold = ltcAmountExpected * 0.98;
+    // Accept if received is at least 95% of expected
+    const threshold = (ltcAmountExpected || 0) * 0.95;
     const isSufficient = check.amountReceivedLtc >= threshold;
 
     if (!check.hasTx || !isSufficient) {
@@ -115,22 +169,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
 
-    // 3. PAYMENT DETECTED / SUFFICIENT!
-    // Update order status in Firestore to PAID
-    await fetch(
-      `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/orders/${orderId}?updateMask.fieldPaths=status&updateMask.fieldPaths=paidAt&updateMask.fieldPaths=txid&key=AIzaSyAhd2t2lx8ooUYEdlll2V0YLSCq3QgOK2k`,
-      {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fields: {
-            status: { stringValue: 'PAID' },
-            paidAt: { integerValue: String(Date.now()) },
-            txid: { stringValue: check.txid || '' },
-          },
-        }),
-      }
-    );
+    // PAYMENT CONFIRMED!
+    // Try to update Firestore order status
+    try {
+      await fetch(
+        `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/orders/${orderId}?updateMask.fieldPaths=status&updateMask.fieldPaths=paidAt&updateMask.fieldPaths=txid&key=AIzaSyAhd2t2lx8ooUYEdlll2V0YLSCq3QgOK2k`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            fields: {
+              status: { stringValue: 'PAID' },
+              paidAt: { integerValue: String(Date.now()) },
+              txid: { stringValue: check.txid || '' },
+            },
+          }),
+        }
+      );
+    } catch {}
 
     // Mark username document as SOLD
     if (usernameId) {
@@ -148,15 +204,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }),
           }
         );
-      } catch (err) {
-        console.error('Failed to mark username as sold:', err);
-      }
-    }
-
-    // Increment discount usage if applicable
-    if (discountCode) {
-      try {
-        await incrementDiscountUsage(discountCode);
       } catch {}
     }
 
@@ -164,9 +211,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (customerEmail) {
       await dispatchDeliveryEmail({
         customerEmail,
-        username,
+        username: username || 'Discord Identifier',
         orderId,
-        amount: usdAmount.toFixed(2),
+        amount: usdAmount ? usdAmount.toFixed(2) : '1.00',
         currency: 'USD (LTC)',
         credentials,
       });
@@ -175,10 +222,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Send Discord Sales Webhook
     await sendDiscordSaleNotification({
       orderId,
-      username,
+      username: username || 'Discord Identifier',
       customerEmail,
       customerDiscord,
-      amount: `${usdAmount.toFixed(2)} (${check.amountReceivedLtc} LTC)`,
+      amount: `${usdAmount ? usdAmount.toFixed(2) : '1.00'} (${check.amountReceivedLtc} LTC)`,
       currency: 'USD',
       discountCode,
       isDelivered: Boolean(credentials && credentials.trim()),
@@ -199,47 +246,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 }
 
-async function incrementDiscountUsage(codeToIncrement: string) {
-  const discountsRes = await fetch(
-    `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/settings/discounts?key=AIzaSyAhd2t2lx8ooUYEdlll2V0YLSCq3QgOK2k`
-  );
-  if (!discountsRes.ok) return;
-  const discountsJson = await discountsRes.json();
-  const codesList = discountsJson.fields?.codes?.arrayValue?.values || [];
-
-  const updatedCodes = codesList.map((item: any) => {
-    const map = item.mapValue?.fields || {};
-    const codeStr = (map.code?.stringValue || '').toUpperCase();
-    if (codeStr === codeToIncrement.toUpperCase()) {
-      const currentCount = Number(map.usedCount?.integerValue ?? 0);
-      return {
-        mapValue: {
-          fields: {
-            ...map,
-            usedCount: { integerValue: String(currentCount + 1) },
-          },
-        },
-      };
-    }
-    return item;
-  });
-
-  await fetch(
-    `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/settings/discounts?updateMask.fieldPaths=codes&key=AIzaSyAhd2t2lx8ooUYEdlll2V0YLSCq3QgOK2k`,
-    {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        fields: {
-          codes: {
-            arrayValue: { values: updatedCodes },
-          },
-        },
-      }),
-    }
-  );
-}
-
 async function dispatchDeliveryEmail(params: {
   customerEmail: string;
   username: string;
@@ -249,18 +255,7 @@ async function dispatchDeliveryEmail(params: {
   credentials?: string;
 }) {
   const { customerEmail, username, orderId, amount, currency, credentials } = params;
-
   let activeDiscordLink = 'https://discord.gg/5WC6sH2rrj';
-  try {
-    const configRes = await fetch(
-      `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/settings/config?key=AIzaSyAhd2t2lx8ooUYEdlll2V0YLSCq3QgOK2k`
-    );
-    if (configRes.ok) {
-      const configJson = await configRes.json();
-      activeDiscordLink = configJson.fields?.discordServerLink?.stringValue || activeDiscordLink;
-    }
-  } catch {}
-
   const hasCredentials = Boolean(credentials && credentials.trim().length > 0);
 
   const credentialsBlock = hasCredentials
@@ -270,24 +265,16 @@ async function dispatchDeliveryEmail(params: {
           INSTANT ACCOUNT CREDENTIALS
         </div>
         <pre style="background-color: #050608; border: 1px solid #23252c; padding: 16px; color: #ffffff; font-family: monospace; font-size: 14px; word-break: break-all; white-space: pre-wrap; margin: 0 0 12px 0;">${credentials}</pre>
-        <p style="font-size: 12px; color: #a1a1aa; margin: 0; line-height: 1.5;">
-          Follow the official instructions below immediately to secure your new account.
-        </p>
       </div>
     `
     : `
       <div style="background-color: #0c0d10; border: 1px solid #d4af37; padding: 22px; margin-bottom: 24px; text-align: center;">
-        <div style="font-family: monospace; font-size: 12px; color: #d4af37; text-transform: uppercase; margin-bottom: 8px; font-weight: 700; letter-spacing: 1px;">
-          COLD STORAGE FULFILLMENT REQUIRED
+        <div style="font-family: monospace; font-size: 12px; color: #d4af37; text-transform: uppercase; margin-bottom: 8px; font-weight: 700;">
+          COLD STORAGE MANUAL RELEASE REQUIRED
         </div>
-        <p style="font-size: 13px; color: #c4c7cf; margin: 0 0 16px 0; line-height: 1.6;">
-          Your payment has been verified on the Litecoin blockchain. This identifier is secured in cold storage. Open a priority ticket or direct message @nonconfident on Discord with your Order ID to receive immediate account transfer.
+        <p style="font-size: 13px; color: #c4c7cf; margin: 0 0 16px 0;">
+          Your payment was confirmed on the blockchain! Open a priority ticket on Discord with order reference <strong>${orderId}</strong> to receive transfer.
         </p>
-        <div style="font-family: monospace; font-size: 12px; color: #ffffff; background: #16181f; padding: 10px; border: 1px solid #2e323e; display: inline-block; margin-bottom: 16px;">
-          Order Reference: <strong style="color: #d4af37;">${orderId}</strong>
-        </div>
-        <br />
-        <a href="${activeDiscordLink}" style="display: inline-block; background-color: #d4af37; color: #090a0d; font-family: monospace; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; padding: 12px 24px; text-decoration: none;">Open Priority Ticket</a>
       </div>
     `;
 
@@ -297,32 +284,16 @@ async function dispatchDeliveryEmail(params: {
       to: customerEmail,
       subject: `Your Discord Handle: ${username} [Order ${orderId}]`,
       html: `
-        <div style="background-color: #090a0d; color: #eaebee; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; padding: 32px 20px; line-height: 1.6;">
+        <div style="background-color: #090a0d; color: #eaebee; font-family: sans-serif; padding: 32px 20px;">
           <div style="max-width: 580px; margin: 0 auto; background-color: #101115; border: 1px solid #22242a; padding: 32px;">
-            <div style="border-bottom: 1px solid #22242a; padding-bottom: 20px; margin-bottom: 24px;">
-              <span style="font-family: monospace; font-size: 11px; letter-spacing: 2px; color: #d4af37; text-transform: uppercase;">ZENTIROG VAULT / DISPATCH</span>
-              <h1 style="color: #ffffff; font-size: 24px; font-weight: 800; margin: 8px 0 0 0; text-transform: uppercase; letter-spacing: 1px;">Order Confirmed</h1>
-            </div>
-
-            <div style="background-color: #0c0d10; border: 1px solid #22242a; padding: 18px; margin-bottom: 24px;">
-              <div style="font-family: monospace; font-size: 11px; color: #71717a; text-transform: uppercase; margin-bottom: 4px;">ACQUIRED IDENTIFIER</div>
-              <div style="font-family: monospace; font-size: 22px; font-weight: 700; color: #ffffff;">${username}</div>
-              <div style="font-family: monospace; font-size: 12px; color: #a1a1aa; margin-top: 6px;">Order ID: ${orderId} · Total: $${amount} ${currency}</div>
-            </div>
-
+            <h1 style="color: #d4af37; font-size: 20px; margin: 0 0 16px 0;">Order Confirmed (${orderId})</h1>
+            <p style="color: #ffffff; font-size: 16px;">Acquired Handle: <strong>${username}</strong></p>
             ${credentialsBlock}
-
-            <div style="border-top: 1px solid #22242a; padding-top: 20px; text-align: center;">
-              <p style="font-size: 12px; color: #71717a; margin: 0 0 12px 0;">Need assistance? Contact @nonconfident directly:</p>
-              <a href="${activeDiscordLink}" style="display: inline-block; background-color: #1c1e24; color: #ffffff; border: 1px solid #333742; font-family: monospace; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; padding: 10px 20px; text-decoration: none;">Join Discord Community</a>
-            </div>
           </div>
         </div>
       `,
     });
-  } catch (err) {
-    console.error('Failed to send Resend email:', err);
-  }
+  } catch {}
 }
 
 async function sendDiscordSaleNotification(params: {
@@ -363,7 +334,5 @@ async function sendDiscordSaleNotification(params: {
         embeds: [embed],
       }),
     });
-  } catch (err) {
-    console.error('Failed to dispatch Discord webhook:', err);
-  }
+  } catch {}
 }

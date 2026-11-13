@@ -11,6 +11,7 @@ interface CheckoutModalProps {
 
 interface LtcOrderState {
   orderId: string;
+  orderToken?: string;
   usdAmount: number;
   ltcAmount: number;
   ltcAddress: string;
@@ -70,7 +71,12 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         const res = await fetch('/api/ltc-check-payment', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ orderId: ltcOrder.orderId }),
+          body: JSON.stringify({
+            orderId: ltcOrder.orderId,
+            orderToken: ltcOrder.orderToken,
+            address: ltcOrder.ltcAddress,
+            ltcAmount: ltcOrder.ltcAmount,
+          }),
         });
 
         if (res.ok) {
@@ -229,6 +235,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
       setLtcOrder({
         orderId: data.orderId,
+        orderToken: data.orderToken,
         usdAmount: data.usdAmount,
         ltcAmount: data.ltcAmount,
         ltcAddress: data.ltcAddress,
