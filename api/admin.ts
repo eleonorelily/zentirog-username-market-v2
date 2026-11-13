@@ -3,7 +3,7 @@ import { MongoClient, ObjectId } from 'mongodb';
 import crypto from 'node:crypto';
 
 const MONGODB_URI = process.env.MONGODB_URI || '';
-const ADMIN_JWT_SECRET = process.env.CRYPTOMUS_PAYMENT_KEY || process.env.ORDER_TOKEN_SECRET || 'zentirog-secret-jwt-key-2026';
+const ADMIN_JWT_SECRET = process.env.ADMIN_JWT_SECRET || process.env.CRYPTOMUS_PAYMENT_KEY || process.env.ORDER_TOKEN_SECRET || 'zentirog-secret-jwt-key-2026';
 
 let cachedMongoClient: MongoClient | null = null;
 
@@ -99,6 +99,36 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       token,
       email: adminUser.email,
     });
+  }
+
+  // 2. PUBLIC DISCOUNT CODE VALIDATION — no auth required
+  if (req.method === 'POST' && action === 'validate_discount') {
+    const { code } = req.body;
+    if (typeof code !== 'string' || !code.trim()) {
+      return res.status(400).json({ error: 'Missing discount code.' });
+    }
+    const upperCode = code.trim().toUpperCase();
+    const discountDoc = await colSettings.findOne({ _id: 'discounts' as any });
+    const codes: any[] = discountDoc?.codes || [];
+
+    const found = codes.find(
+      (c: any) =>
+        typeof c.code === 'string' &&
+        c.code.toUpperCase() === upperCode &&
+        c.active !== false
+    );
+
+    if (!found) {
+      return res.status(200).json({ valid: false, reason: 'Invalid or expired promo code.' });
+    }
+
+    const maxUses = Number(found.maxUses ?? 0);
+    const usedCount = Number(found.usedCount ?? 0);
+    if (maxUses > 0 && usedCount >= maxUses) {
+      return res.status(200).json({ valid: false, reason: 'This promo code has reached its maximum uses.' });
+    }
+
+    return res.status(200).json({ valid: true, percent: Number(found.discountPercent ?? 0), code: found.code });
   }
 
   // ALL OTHER ACTIONS REQUIRE NATIVE SESSION TOKEN

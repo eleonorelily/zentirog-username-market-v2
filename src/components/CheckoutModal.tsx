@@ -55,44 +55,22 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     setDiscountMessage(null);
 
     try {
-      // Validate by querying public Firestore doc settings/discounts
-      const res = await fetch(
-        'https://firestore.googleapis.com/v1/projects/zentirog-market-2026/databases/(default)/documents/settings/discounts'
-      );
-      if (!res.ok) {
-        throw new Error('Could not check promo codes at this time.');
-      }
+      // Validate via our own MongoDB-backed API — no Firebase
+      const res = await fetch('/api/admin?action=validate_discount', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code }),
+      });
       const data = await res.json();
-      const codesList = data.fields?.codes?.arrayValue?.values || [];
 
-      let found: { code: string; percent: number; maxUses: number; usedCount: number } | null = null;
-      for (const item of codesList) {
-        const map = item.mapValue?.fields || {};
-        const codeStr = (map.code?.stringValue || '').toUpperCase();
-        const active = map.active?.booleanValue ?? true;
-        const maxUses = Number(map.maxUses?.integerValue ?? 0);
-        const usedCount = Number(map.usedCount?.integerValue ?? 0);
-        const percent = Number(map.discountPercent?.integerValue ?? 0);
-
-        if (codeStr === code && active) {
-          found = { code: codeStr, percent, maxUses, usedCount };
-          break;
-        }
-      }
-
-      if (!found) {
-        setDiscountMessage({ text: 'Invalid or expired promo code.', isError: true });
+      if (!data.valid) {
+        setDiscountMessage({ text: data.reason || 'Invalid or expired promo code.', isError: true });
         return;
       }
 
-      if (found.maxUses > 0 && found.usedCount >= found.maxUses) {
-        setDiscountMessage({ text: 'This promo code has reached its maximum uses.', isError: true });
-        return;
-      }
-
-      setAppliedDiscount({ code: found.code, percent: found.percent });
+      setAppliedDiscount({ code: data.code, percent: data.percent });
       setDiscountMessage({
-        text: `Promo applied: ${found.percent}% OFF!`,
+        text: `Promo applied: ${data.percent}% OFF!`,
         isError: false,
       });
     } catch (err: any) {

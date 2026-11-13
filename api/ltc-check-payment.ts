@@ -1,11 +1,25 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { Resend } from 'resend';
 import crypto from 'node:crypto';
+import { MongoClient, ObjectId } from 'mongodb';
+
+const MONGODB_URI = process.env.MONGODB_URI || '';
+let cachedMongoClient: MongoClient | null = null;
+
+async function getMongoDatabase() {
+  if (!cachedMongoClient) {
+    cachedMongoClient = new MongoClient(MONGODB_URI, {
+      connectTimeoutMS: 5000,
+      serverSelectionTimeoutMS: 5000,
+    });
+    await cachedMongoClient.connect();
+  }
+  return cachedMongoClient.db('zentirog');
+}
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY || '';
 const DISCORD_SALES_WEBHOOK = process.env.DISCORD_SALES_WEBHOOK || '';
 const ORDER_SECRET = process.env.ORDER_TOKEN_SECRET || process.env.CRYPTOMUS_PAYMENT_KEY || 'order_salt_secret_zentirog_2026';
-const FIREBASE_PROJECT_ID = 'zentirog-market-2026';
 const resend = new Resend(RESEND_API_KEY);
 
 interface CheckResult {
@@ -92,24 +106,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (!orderData && orderId) {
       try {
-        const orderRes = await fetch(
-          `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/orders/${orderId}?key=AIzaSyAhd2t2lx8ooUYEdlll2V0YLSCq3QgOK2k`
-        );
-        if (orderRes.ok) {
-          const orderJson = await orderRes.json();
-          const f = orderJson.fields || {};
+        const db = await getMongoDatabase();
+        const mongoOrder = await db.collection('ltc_orders').findOne({ orderId });
+        if (mongoOrder) {
           orderData = {
             orderId,
-            status: f.status?.stringValue || 'WAITING',
-            ltcAddress: f.ltcAddress?.stringValue || '',
-            ltcAmount: Number(f.ltcAmount?.doubleValue || 0),
-            username: f.username?.stringValue || '',
-            usernameId: f.usernameId?.stringValue || '',
-            customerEmail: f.customerEmail?.stringValue || '',
-            customerDiscord: f.customerDiscord?.stringValue || '',
-            credentials: f.credentials?.stringValue || '',
-            usdAmount: Number(f.usdAmount?.doubleValue || 0),
-            discountCode: f.discountCode?.stringValue || '',
+            status: mongoOrder.status || 'WAITING',
+            ltcAddress: mongoOrder.ltcAddress || '',
+            ltcAmount: Number(mongoOrder.ltcAmount || 0),
+            username: mongoOrder.username || '',
+            usernameId: mongoOrder.usernameId || '',
+            customerEmail: mongoOrder.customerEmail || '',
+            customerDiscord: mongoOrder.customerDiscord || '',
+            credentials: mongoOrder.credentials || '',
+            usdAmount: Number(mongoOrder.usdAmount || 0),
+            discountCode: mongoOrder.discountCode || '',
+            createdAt: mongoOrder.createdAt || 0,
           };
         }
       } catch {}
@@ -161,40 +173,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
 
-    // Try to update Firestore order status
+    // Update LTC order status to PAID in MongoDB
     try {
-      await fetch(
-        `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/orders/${orderId}?updateMask.fieldPaths=status&updateMask.fieldPaths=paidAt&updateMask.fieldPaths=txid&key=AIzaSyAhd2t2lx8ooUYEdlll2V0YLSCq3QgOK2k`,
-        {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            fields: {
-              status: { stringValue: 'PAID' },
-              paidAt: { integerValue: String(Date.now()) },
-              txid: { stringValue: check.txid || '' },
-            },
-          }),
-        }
+      const db = await getMongoDatabase();
+      await db.collection('ltc_orders').updateOne(
+        { orderId },
+        { $set: { status: 'PAID', paidAt: Date.now(), txid: check.txid || '' } }
       );
     } catch {}
 
-    // Mark username document as SOLD
+    // Mark username document as SOLD in MongoDB
     if (usernameId) {
       try {
-        await fetch(
-          `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/usernames/${usernameId}?updateMask.fieldPaths=isSold&updateMask.fieldPaths=price&key=AIzaSyAhd2t2lx8ooUYEdlll2V0YLSCq3QgOK2k`,
-          {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              fields: {
-                isSold: { booleanValue: true },
-                price: { stringValue: 'SOLD' },
-              },
-            }),
-          }
-        );
+        const db = await getMongoDatabase();
+        const query = ObjectId.isValid(usernameId)
+          ? { _id: new ObjectId(usernameId) }
+          : { username: usernameId };
+        await db.collection('usernames').updateOne(query, { $set: { isSold: true, price: 'SOLD' } });
       } catch {}
     }
 
@@ -249,13 +244,9 @@ async function dispatchDeliveryEmail(params: {
 
   let activeDiscordLink = 'https://discord.gg/5WC6sH2rrj';
   try {
-    const configRes = await fetch(
-      `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/settings/config?key=AIzaSyAhd2t2lx8ooUYEdlll2V0YLSCq3QgOK2k`
-    );
-    if (configRes.ok) {
-      const configJson = await configRes.json();
-      activeDiscordLink = configJson.fields?.discordServerLink?.stringValue || activeDiscordLink;
-    }
+    const db = await getMongoDatabase();
+    const configDoc = await db.collection('settings').findOne({ _id: 'config' as any });
+    activeDiscordLink = configDoc?.discordServerLink || activeDiscordLink;
   } catch {}
 
   const hasCredentials = Boolean(credentials && credentials.trim().length > 0);

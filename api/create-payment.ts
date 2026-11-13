@@ -23,8 +23,6 @@ const RESEND_API_KEY = process.env.RESEND_API_KEY || '';
 const DISCORD_SALES_WEBHOOK = process.env.DISCORD_SALES_WEBHOOK || '';
 const resend = new Resend(RESEND_API_KEY);
 
-const FIREBASE_PROJECT_ID = 'zentirog-market-2026';
-
 // Helper to extract clean USD price from handle price string
 function parsePriceToNumber(rawPrice: string): number {
   if (!rawPrice || rawPrice === 'SOLD') return 0;
@@ -52,109 +50,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: 'Invalid email address provided.' });
     }
 
-    // 1. Fetch source of truth directly from MongoDB (and fallback to Firestore if needed)
-    let realPrice = 0;
-    let actualUsername = username;
-    let credentials = '';
-    let isSold = false;
-    let firestoreDocId = usernameId;
+    // 1. Fetch source of truth directly from MongoDB ONLY
+    const db = await getMongoDatabase();
+    const cleanHandle = username.startsWith('@') ? username : `@${username}`;
 
-    try {
-      const db = await getMongoDatabase();
-      const cleanHandle = username.startsWith('@') ? username : `@${username}`;
-
-      let doc = null;
-      if (usernameId && ObjectId.isValid(usernameId)) {
-        doc = await db.collection('usernames').findOne({ _id: new ObjectId(usernameId) });
-      }
-      if (!doc) {
-        doc = await db.collection('usernames').findOne({ username: cleanHandle });
-      }
-
-      if (doc) {
-        isSold = Boolean(doc.isSold || doc.price === 'SOLD');
-        realPrice = parsePriceToNumber(doc.price || '');
-        actualUsername = doc.username || username;
-        credentials = doc.credentials || '';
-        firestoreDocId = doc._id.toString();
-      }
-    } catch (mongoErr) {
-      console.warn('MongoDB lookup error in create-payment:', mongoErr);
+    let doc: any = null;
+    if (usernameId && ObjectId.isValid(usernameId)) {
+      doc = await db.collection('usernames').findOne({ _id: new ObjectId(usernameId) });
+    }
+    if (!doc) {
+      doc = await db.collection('usernames').findOne({ username: cleanHandle });
     }
 
-    // Secondary fallback to Firestore if not found in MongoDB
-    if (!realPrice) {
-      if (usernameId) {
-        try {
-          const docRes = await fetch(
-            `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/usernames/${usernameId}?key=AIzaSyAhd2t2lx8ooUYEdlll2V0YLSCq3QgOK2k`
-          );
-          if (docRes.ok) {
-            const docJson = await docRes.json();
-            const fields = docJson.fields || {};
-            isSold = fields.isSold?.booleanValue || fields.price?.stringValue === 'SOLD';
-            realPrice = parsePriceToNumber(fields.price?.stringValue || '');
-            actualUsername = fields.username?.stringValue || username;
-            credentials = fields.credentials?.stringValue || '';
-          }
-        } catch {}
-      }
-
-      if (!realPrice) {
-        const cleanHandle = username.startsWith('@') ? username : `@${username}`;
-        try {
-          const queryRes = await fetch(
-            `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents:runQuery?key=AIzaSyAhd2t2lx8ooUYEdlll2V0YLSCq3QgOK2k`,
-            {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                structuredQuery: {
-                  from: [{ collectionId: 'usernames' }],
-                  where: {
-                    compositeFilter: {
-                      op: 'AND',
-                      filters: [
-                        {
-                          fieldFilter: {
-                            field: { fieldPath: 'username' },
-                            op: 'EQUAL',
-                            value: { stringValue: cleanHandle },
-                          },
-                        },
-                        {
-                          fieldFilter: {
-                            field: { fieldPath: 'public' },
-                            op: 'EQUAL',
-                            value: { booleanValue: true },
-                          },
-                        },
-                      ],
-                    },
-                  },
-                  limit: 1,
-                },
-              }),
-            }
-          );
-          if (queryRes.ok) {
-            const queryJson = await queryRes.json();
-            const firstDoc = queryJson[0]?.document;
-            if (firstDoc) {
-              const fields = firstDoc.fields || {};
-              const pathParts = firstDoc.name.split('/');
-              firestoreDocId = pathParts[pathParts.length - 1];
-              isSold = fields.isSold?.booleanValue || fields.price?.stringValue === 'SOLD';
-              realPrice = parsePriceToNumber(fields.price?.stringValue || '');
-              actualUsername = fields.username?.stringValue || username;
-              credentials = fields.credentials?.stringValue || '';
-            }
-          }
-        } catch {}
-      }
+    if (!doc) {
+      return res.status(404).json({ error: 'Identifier not found in the official database.' });
     }
 
-    // NEVER trust amount from client request body. Only accept server-verified database price.
+    const isSold = Boolean(doc.isSold || doc.price === 'SOLD');
+    const realPrice = parsePriceToNumber(doc.price || '');
+    const actualUsername: string = doc.username || username;
+    const credentials: string = doc.credentials || '';
+    const mongoDocId = doc._id.toString();
+
+    // NEVER trust amount from client. Only accept server-verified database price.
     if (isSold) {
       return res.status(400).json({ error: 'This identifier has already been claimed/sold.' });
     }
@@ -163,39 +81,34 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: 'Could not verify identifier price in official database.' });
     }
 
-    // 2. Validate discount code against Firestore (settings/discounts)
+    // 2. Validate discount code against MongoDB settings/discounts
     let appliedDiscountPercent = 0;
     let appliedCode = '';
 
     if (discountCode && typeof discountCode === 'string' && discountCode.trim()) {
       const codeToTest = discountCode.trim().toUpperCase();
-      try {
-        const db = await getMongoDatabase();
-        const discountDoc = await db.collection('settings').findOne({ _id: 'discounts' as any });
-        const codesList = Array.isArray(discountDoc?.codes) ? discountDoc.codes : [];
+      const discountDoc = await db.collection('settings').findOne({ _id: 'discounts' as any });
+      const codesList = Array.isArray(discountDoc?.codes) ? discountDoc.codes : [];
 
-        for (const item of codesList) {
-          const codeStr = (item.code || '').toUpperCase();
-          const active = item.active ?? true;
-          const maxUses = Number(item.maxUses || 0);
-          const usedCount = Number(item.usedCount || 0);
-          const percent = Number(item.discountPercent || 0);
+      for (const item of codesList) {
+        const codeStr = (item.code || '').toUpperCase();
+        const active = item.active ?? true;
+        const maxUses = Number(item.maxUses || 0);
+        const usedCount = Number(item.usedCount || 0);
+        const percent = Number(item.discountPercent || 0);
 
-          if (codeStr === codeToTest && active) {
-            if (maxUses > 0 && usedCount >= maxUses) {
-              return res.status(400).json({ error: `Discount code ${codeToTest} has reached its maximum usage limit.` });
-            }
-            appliedDiscountPercent = Math.min(100, Math.max(1, percent));
-            appliedCode = codeToTest;
-            break;
+        if (codeStr === codeToTest && active) {
+          if (maxUses > 0 && usedCount >= maxUses) {
+            return res.status(400).json({ error: `Discount code ${codeToTest} has reached its maximum usage limit.` });
           }
+          appliedDiscountPercent = Math.min(100, Math.max(1, percent));
+          appliedCode = codeToTest;
+          break;
         }
+      }
 
-        if (discountCode && !appliedCode) {
-          return res.status(400).json({ error: `Invalid or expired discount code "${discountCode}".` });
-        }
-      } catch (err) {
-        console.warn('Error reading discounts from MongoDB:', err);
+      if (discountCode && !appliedCode) {
+        return res.status(400).json({ error: `Invalid or expired discount code "${discountCode}".` });
       }
     }
 
@@ -217,42 +130,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .update(`${orderId}:${actualUsername}`)
       .digest('hex');
 
-    // 3. CASE: 100% DISCOUNT (FREE) -> Instant fulfillment without payment gateway
+    // 3. CASE: 100% DISCOUNT (FREE) → Instant fulfillment without payment gateway
     if (finalAmount <= 0) {
-      // Mark as sold in Firestore
-      if (firestoreDocId) {
-        try {
-          const resPatch = await fetch(
-            `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/usernames/${firestoreDocId}?updateMask.fieldPaths=isSold&updateMask.fieldPaths=price&key=AIzaSyAhd2t2lx8ooUYEdlll2V0YLSCq3QgOK2k`,
-            {
-              method: 'PATCH',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                fields: {
-                  isSold: { booleanValue: true },
-                  price: { stringValue: 'CLAIMED' },
-                },
-              }),
-            }
-          );
-          if (!resPatch.ok) {
-            console.error('Failed to patch username as sold:', await resPatch.text());
-          }
-        } catch (dbErr) {
-          console.error('Failed to update Firestore on 100% discount:', dbErr);
-        }
-      }
+      // Mark as sold in MongoDB
+      await db.collection('usernames').updateOne(
+        { _id: new ObjectId(mongoDocId) },
+        { $set: { isSold: true, price: 'CLAIMED' } }
+      );
 
-      // Increment discount usage
+      // Increment discount usage in MongoDB
       if (appliedCode) {
-        try {
-          await incrementDiscountUsage(appliedCode);
-        } catch (uErr) {
-          console.warn('Could not increment discount usage:', uErr);
-        }
+        await incrementDiscountUsageMongo(db, appliedCode);
       }
 
-      // Dispatch Email
+      // Load discord link from MongoDB settings
+      const activeDiscordLink = await getDiscordLinkMongo(db);
+
       await dispatchDeliveryEmail({
         customerEmail,
         username: actualUsername,
@@ -260,9 +153,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         amount: '0.00',
         currency: 'USD',
         credentials,
+        activeDiscordLink,
       });
 
-      // Dispatch Discord Webhook Notification
       await sendDiscordSaleNotification({
         orderId,
         username: actualUsername,
@@ -293,7 +186,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       is_payment_multiple: false,
       lifetime: 3600,
       additional_data: JSON.stringify({
-        usernameId: firestoreDocId || usernameId || '',
+        usernameId: mongoDocId,
         username: actualUsername,
         customerEmail: customerEmail.trim().toLowerCase(),
         customerDiscord: customerDiscord ? customerDiscord.trim() : '',
@@ -343,45 +236,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 }
 
-async function incrementDiscountUsage(codeToIncrement: string) {
-  const discountsRes = await fetch(
-    `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/settings/discounts?key=AIzaSyAhd2t2lx8ooUYEdlll2V0YLSCq3QgOK2k`
+// Pure MongoDB discount usage increment
+async function incrementDiscountUsageMongo(db: any, codeToIncrement: string) {
+  await db.collection('settings').updateOne(
+    { _id: 'discounts', 'codes.code': codeToIncrement },
+    { $inc: { 'codes.$.usedCount': 1 } }
   );
-  if (!discountsRes.ok) return;
-  const discountsJson = await discountsRes.json();
-  const codesList = discountsJson.fields?.codes?.arrayValue?.values || [];
+}
 
-  const updatedCodes = codesList.map((item: any) => {
-    const map = item.mapValue?.fields || {};
-    const codeStr = (map.code?.stringValue || '').toUpperCase();
-    if (codeStr === codeToIncrement) {
-      const currentCount = Number(map.usedCount?.integerValue ?? 0);
-      return {
-        mapValue: {
-          fields: {
-            ...map,
-            usedCount: { integerValue: String(currentCount + 1) },
-          },
-        },
-      };
-    }
-    return item;
-  });
-
-  await fetch(
-    `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/settings/discounts?updateMask.fieldPaths=codes&key=AIzaSyAhd2t2lx8ooUYEdlll2V0YLSCq3QgOK2k`,
-    {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        fields: {
-          codes: {
-            arrayValue: { values: updatedCodes },
-          },
-        },
-      }),
-    }
-  );
+// Pure MongoDB discord link fetch
+async function getDiscordLinkMongo(db: any): Promise<string> {
+  const defaultLink = 'https://discord.gg/5WC6sH2rrj';
+  try {
+    const configDoc = await db.collection('settings').findOne({ _id: 'config' });
+    return configDoc?.discordServerLink || defaultLink;
+  } catch {
+    return defaultLink;
+  }
 }
 
 async function dispatchDeliveryEmail(params: {
@@ -391,25 +262,11 @@ async function dispatchDeliveryEmail(params: {
   amount: string;
   currency: string;
   credentials?: string;
+  activeDiscordLink: string;
 }) {
-  const { customerEmail, username, orderId, amount, currency, credentials } = params;
+  const { customerEmail, username, orderId, amount, currency, credentials, activeDiscordLink } = params;
   const cleanCreds = (credentials || '').trim();
   const hasCreds = cleanCreds.length > 0;
-
-  // Dynamically load active Discord link from Firestore
-  let activeDiscordLink = 'https://discord.gg/5WC6sH2rrj';
-  try {
-    const configRes = await fetch(
-      `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/settings/config?key=AIzaSyAhd2t2lx8ooUYEdlll2V0YLSCq3QgOK2k`
-    );
-    if (configRes.ok) {
-      const configJson = await configRes.json();
-      const link = configJson.fields?.discordServerLink?.stringValue;
-      if (link) activeDiscordLink = link;
-    }
-  } catch (cErr) {
-    console.warn('Could not fetch active discord link for email:', cErr);
-  }
 
   const credentialsBlock = hasCreds
     ? `
@@ -433,7 +290,7 @@ async function dispatchDeliveryEmail(params: {
           Email: <strong style="color: #ffffff;">${customerEmail}</strong><br/>
           Direct Contact: <strong style="color: #d4af37;">@nonconfident</strong> on Discord
         </div>
-        <a href="${activeDiscordLink}" style="display: inline-block; background-color: #d4af37; color: #090a0d; font-family: monospace; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; padding: 12px 24px; text-decoration: none;">Join Discord & Contact @nonconfident</a>
+        <a href="${activeDiscordLink}" style="display: inline-block; background-color: #d4af37; color: #090a0d; font-family: monospace; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; padding: 12px 24px; text-decoration: none;">Join Discord &amp; Contact @nonconfident</a>
       </div>
     `;
 
@@ -461,7 +318,7 @@ async function dispatchDeliveryEmail(params: {
       </div>
 
       <div style="font-size: 13px; color: #c4c7cf; line-height: 1.6;">
-        <strong style="color: #ffffff; display: block; margin-bottom: 4px;">3. Account Security & Verification Notice:</strong>
+        <strong style="color: #ffffff; display: block; margin-bottom: 4px;">3. Account Security &amp; Verification Notice:</strong>
         If Discord displays an account restriction or temporary lock banner for 2 days, <strong>this is completely normal</strong>. It is Discord's standard automated security measure when logging into an account from a new IP/browser fingerprint. The restriction automatically expires after 48 hours.
       </div>
     </div>
@@ -533,49 +390,17 @@ async function sendDiscordSaleNotification({
     const embed = {
       title: '⚡ NEW VAULT PURCHASE SUCCESSFUL',
       description: `Target Identifier **${username}** has been secured!`,
-      color: 0xd4af37, // Luxury Gold
+      color: 0xd4af37,
       fields: [
-        {
-          name: '🎯 Username / Identifier',
-          value: `\`${username}\``,
-          inline: true,
-        },
-        {
-          name: '💰 Amount Paid',
-          value: `**$${amount} ${currency}**${discountCode ? ` *(Code: \`${discountCode}\`)*` : ''}`,
-          inline: true,
-        },
-        {
-          name: '💳 Method',
-          value: paymentMethod,
-          inline: true,
-        },
-        {
-          name: '📧 Customer Email',
-          value: customerEmail ? `\`${customerEmail}\`` : '*Not provided*',
-          inline: true,
-        },
-        {
-          name: '💬 Customer Discord',
-          value: customerDiscord ? `**${customerDiscord}**` : '*Not provided*',
-          inline: true,
-        },
-        {
-          name: '📦 Fulfillment Status',
-          value: isDelivered
-            ? '✅ **Delivered Instantly** (Email & Screen)'
-            : '⏳ **Manual Cold Storage Ticket Required**',
-          inline: true,
-        },
-        {
-          name: '🧾 Order ID',
-          value: `\`${orderId}\``,
-          inline: false,
-        },
+        { name: '🎯 Username / Identifier', value: `\`${username}\``, inline: true },
+        { name: '💰 Amount Paid', value: `**$${amount} ${currency}**${discountCode ? ` *(Code: \`${discountCode}\`)*` : ''}`, inline: true },
+        { name: '💳 Method', value: paymentMethod, inline: true },
+        { name: '📧 Customer Email', value: customerEmail ? `\`${customerEmail}\`` : '*Not provided*', inline: true },
+        { name: '💬 Customer Discord', value: customerDiscord ? `**${customerDiscord}**` : '*Not provided*', inline: true },
+        { name: '📦 Fulfillment Status', value: isDelivered ? '✅ **Delivered Instantly** (Email & Screen)' : '⏳ **Manual Cold Storage Ticket Required**', inline: true },
+        { name: '🧾 Order ID', value: `\`${orderId}\``, inline: false },
       ],
-      footer: {
-        text: 'Zentirog Automated Sales System • users.zentirog.lol',
-      },
+      footer: { text: 'Zentirog Automated Sales System • users.zentirog.lol' },
       timestamp: new Date().toISOString(),
     };
 

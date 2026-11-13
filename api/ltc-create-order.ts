@@ -1,10 +1,24 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { HDKey } from '@scure/bip32';
 import crypto from 'node:crypto';
+import { MongoClient, ObjectId } from 'mongodb';
+
+const MONGODB_URI = process.env.MONGODB_URI || '';
+let cachedMongoClient: MongoClient | null = null;
+
+async function getMongoDatabase() {
+  if (!cachedMongoClient) {
+    cachedMongoClient = new MongoClient(MONGODB_URI, {
+      connectTimeoutMS: 5000,
+      serverSelectionTimeoutMS: 5000,
+    });
+    await cachedMongoClient.connect();
+  }
+  return cachedMongoClient.db('zentirog');
+}
 
 const LTC_XPUB = process.env.LTC_XPUB || 'xpub6CeTYSUZLABp3meXfXXoTKBfFkkYWNWa9nzZQnUE7esdkVKKWugX847tCu41Yt3dfpqV5tFRcBEqqjtDsBysxoZQKj8XRSZaojcQcEokM19';
 const ORDER_SECRET = process.env.ORDER_TOKEN_SECRET || process.env.CRYPTOMUS_PAYMENT_KEY || 'order_salt_secret_zentirog_2026';
-const FIREBASE_PROJECT_ID = 'zentirog-market-2026';
 
 const B58_DIGITS = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
 
@@ -82,68 +96,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: 'Invalid delivery email address provided.' });
     }
 
-    // 1. Fetch official handle price and details from Firestore
+    // 1. Fetch official handle price and details from MongoDB
     let realPrice = 0;
     let actualUsername = username;
     let credentials = '';
     let isSold = false;
-    let firestoreDocId = usernameId;
 
-    if (usernameId) {
-      try {
-        const docRes = await fetch(
-          `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/usernames/${usernameId}?key=AIzaSyAhd2t2lx8ooUYEdlll2V0YLSCq3QgOK2k`
-        );
-        if (docRes.ok) {
-          const docJson = await docRes.json();
-          const fields = docJson.fields || {};
-          isSold = fields.isSold?.booleanValue || fields.price?.stringValue === 'SOLD';
-          realPrice = parsePriceToNumber(fields.price?.stringValue || '');
-          actualUsername = fields.username?.stringValue || username;
-          credentials = fields.credentials?.stringValue || '';
-        }
-      } catch {}
+    const db = await getMongoDatabase();
+    const cleanHandle = username.startsWith('@') ? username : `@${username}`;
+
+    let doc: any = null;
+    if (usernameId && ObjectId.isValid(usernameId)) {
+      doc = await db.collection('usernames').findOne({ _id: new ObjectId(usernameId) });
+    }
+    if (!doc) {
+      doc = await db.collection('usernames').findOne({ username: cleanHandle });
     }
 
-    if (!realPrice) {
-      const cleanHandle = username.startsWith('@') ? username : `@${username}`;
-      try {
-        const queryRes = await fetch(
-          `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents:runQuery?key=AIzaSyAhd2t2lx8ooUYEdlll2V0YLSCq3QgOK2k`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              structuredQuery: {
-                from: [{ collectionId: 'usernames' }],
-                where: {
-                  compositeFilter: {
-                    op: 'AND',
-                    filters: [
-                      { fieldFilter: { field: { fieldPath: 'username' }, op: 'EQUAL', value: { stringValue: cleanHandle } } },
-                      { fieldFilter: { field: { fieldPath: 'public' }, op: 'EQUAL', value: { booleanValue: true } } },
-                    ],
-                  },
-                },
-                limit: 1,
-              },
-            }),
-          }
-        );
-        if (queryRes.ok) {
-          const queryJson = await queryRes.json();
-          const firstDoc = queryJson[0]?.document;
-          if (firstDoc) {
-            const fields = firstDoc.fields || {};
-            const pathParts = firstDoc.name.split('/');
-            firestoreDocId = pathParts[pathParts.length - 1];
-            isSold = fields.isSold?.booleanValue || fields.price?.stringValue === 'SOLD';
-            realPrice = parsePriceToNumber(fields.price?.stringValue || '');
-            actualUsername = fields.username?.stringValue || username;
-            credentials = fields.credentials?.stringValue || '';
-          }
-        }
-      } catch {}
+    if (doc) {
+      isSold = Boolean(doc.isSold || doc.price === 'SOLD');
+      realPrice = parsePriceToNumber(doc.price || '');
+      actualUsername = doc.username || username;
+      credentials = doc.credentials || '';
     }
 
     if (isSold) {
@@ -164,28 +138,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (discountCode && typeof discountCode === 'string' && discountCode.trim()) {
       const codeToTest = discountCode.trim().toUpperCase();
       try {
-        const discountsRes = await fetch(
-          `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/settings/discounts`
-        );
-        if (discountsRes.ok) {
-          const discountsJson = await discountsRes.json();
-          const codesList = discountsJson.fields?.codes?.arrayValue?.values || [];
-          for (const item of codesList) {
-            const map = item.mapValue?.fields || {};
-            const codeStr = (map.code?.stringValue || '').toUpperCase();
-            const active = map.active?.booleanValue ?? true;
-            const maxUses = Number(map.maxUses?.integerValue ?? 0);
-            const usedCount = Number(map.usedCount?.integerValue ?? 0);
-            const percent = Number(map.discountPercent?.integerValue ?? 0);
+        const discountDoc = await db.collection('settings').findOne({ _id: 'discounts' as any });
+        const codesList = Array.isArray(discountDoc?.codes) ? discountDoc.codes : [];
+        for (const item of codesList) {
+          const codeStr = (item.code || '').toUpperCase();
+          const active = item.active ?? true;
+          const maxUses = Number(item.maxUses || 0);
+          const usedCount = Number(item.usedCount || 0);
+          const percent = Number(item.discountPercent || 0);
 
-            if (codeStr === codeToTest && active) {
-              if (maxUses > 0 && usedCount >= maxUses) {
-                return res.status(400).json({ error: `Discount code ${codeToTest} has reached its maximum usage limit.` });
-              }
-              appliedDiscountPercent = Math.min(100, Math.max(1, percent));
-              appliedCode = codeToTest;
-              break;
+          if (codeStr === codeToTest && active) {
+            if (maxUses > 0 && usedCount >= maxUses) {
+              return res.status(400).json({ error: `Discount code ${codeToTest} has reached its maximum usage limit.` });
             }
+            appliedDiscountPercent = Math.min(100, Math.max(1, percent));
+            appliedCode = codeToTest;
+            break;
           }
         }
       } catch {}
@@ -209,10 +177,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const ltcAmount = parseFloat(rawLtc.toFixed(5));
     const orderId = `LTC-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
 
+    const mongoDocId = doc ? doc._id.toString() : (usernameId || '');
+
     // Create tamper-proof cryptographically signed order token
     const orderPayload = {
       orderId,
-      usernameId: firestoreDocId || usernameId || '',
+      usernameId: mongoDocId,
       username: actualUsername,
       customerEmail: customerEmail.trim().toLowerCase(),
       customerDiscord: (customerDiscord || '').trim(),
@@ -228,32 +198,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const signature = crypto.createHmac('sha256', ORDER_SECRET).update(serialized).digest('hex');
     const orderToken = `${Buffer.from(serialized).toString('base64url')}.${signature}`;
 
-    // Also attempt write to Firestore (if quota allows)
+    // Store order in MongoDB
     try {
-      await fetch(
-        `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/orders/${orderId}?key=AIzaSyAhd2t2lx8ooUYEdlll2V0YLSCq3QgOK2k`,
-        {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            fields: {
-              orderId: { stringValue: orderId },
-              usernameId: { stringValue: firestoreDocId || usernameId || '' },
-              username: { stringValue: actualUsername },
-              customerEmail: { stringValue: customerEmail.trim().toLowerCase() },
-              customerDiscord: { stringValue: (customerDiscord || '').trim() },
-              discountCode: { stringValue: appliedCode || '' },
-              usdAmount: { doubleValue: finalAmount },
-              ltcAmount: { doubleValue: ltcAmount },
-              ltcAddress: { stringValue: ltcDepositAddress },
-              status: { stringValue: 'WAITING' },
-              credentials: { stringValue: credentials },
-              createdAt: { integerValue: String(Date.now()) },
-            },
-          }),
-        }
-      );
-    } catch {}
+      await db.collection('ltc_orders').insertOne({
+        orderId,
+        usernameId: mongoDocId,
+        username: actualUsername,
+        customerEmail: customerEmail.trim().toLowerCase(),
+        customerDiscord: (customerDiscord || '').trim(),
+        discountCode: appliedCode || '',
+        usdAmount: finalAmount,
+        ltcAmount,
+        ltcAddress: ltcDepositAddress,
+        status: 'WAITING',
+        createdAt: Date.now(),
+      });
+    } catch (err) {
+      console.warn('Could not store LTC order in MongoDB:', err);
+    }
 
     return res.status(200).json({
       success: true,

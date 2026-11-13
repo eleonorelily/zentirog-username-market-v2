@@ -22,8 +22,6 @@ const RESEND_API_KEY = process.env.RESEND_API_KEY || '';
 const DISCORD_SALES_WEBHOOK = process.env.DISCORD_SALES_WEBHOOK || '';
 const resend = new Resend(RESEND_API_KEY);
 
-const FIREBASE_PROJECT_ID = 'zentirog-market-2026';
-
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method Not Allowed' });
@@ -86,10 +84,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const amountPaid = rawBody.amount || '0.00';
     const currency = rawBody.currency || 'USD';
 
-    // Increment discount usage in database if a code was used
+    // Increment discount usage in MongoDB if a code was used
     if (discountCode) {
       try {
-        await incrementDiscountUsage(discountCode);
+        const dbForDiscount = await getMongoDatabase();
+        await dbForDiscount.collection('settings').updateOne(
+          { _id: 'discounts' as any, 'codes.code': discountCode.toUpperCase() },
+          { $inc: { 'codes.$.usedCount': 1 } }
+        );
       } catch (err) {
         console.warn('Error incrementing discount count:', err);
       }
@@ -127,33 +129,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       console.error('MongoDB update error in cryptomus webhook:', mongoErr);
     }
 
-    // Secondary fallback update to Firestore if document ID exists
-    let targetDocId = usernameId;
-    if (targetDocId) {
-      try {
-        const firestoreUrl = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/usernames/${targetDocId}?key=AIzaSyAhd2t2lx8ooUYEdlll2V0YLSCq3QgOK2k`;
-        const docRes = await fetch(firestoreUrl);
-        if (docRes.ok) {
-          const docData = await docRes.json();
-          if (!accountCredentials && docData.fields?.credentials?.stringValue) {
-            accountCredentials = docData.fields.credentials.stringValue;
-          }
-
-          await fetch(`${firestoreUrl}&updateMask.fieldPaths=isSold&updateMask.fieldPaths=price`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              fields: {
-                isSold: { booleanValue: true },
-                price: { stringValue: 'SOLD' },
-              },
-            }),
-          });
-        }
-      } catch (dbErr) {
-        console.error('Firestore fallback update error:', dbErr);
-      }
-    }
+    // MongoDB already updated above. No Firestore fallback needed.
 
     // Dispatch automated delivery email to customer
     if (customerEmail) {
@@ -184,50 +160,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   } catch (error: any) {
     console.error('Cryptomus webhook error:', error);
     return res.status(500).json({ error: error.message || 'Webhook processing failed.' });
-  }
-}
-
-async function incrementDiscountUsage(code: string) {
-  try {
-    const discountsRes = await fetch(
-      `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/settings/discounts?key=AIzaSyAhd2t2lx8ooUYEdlll2V0YLSCq3QgOK2k`
-    );
-    if (!discountsRes.ok) return;
-
-    const discountsJson = await discountsRes.json();
-    const codesList = discountsJson.fields?.codes?.arrayValue?.values || [];
-
-    const updatedList = codesList.map((item: any) => {
-      const map = item.mapValue?.fields || {};
-      const itemCode = (map.code?.stringValue || '').toUpperCase();
-      if (itemCode === code.toUpperCase()) {
-        const currentUsed = Number(map.usedCount?.integerValue || 0);
-        return {
-          mapValue: {
-            fields: {
-              ...map,
-              usedCount: { integerValue: String(currentUsed + 1) },
-            },
-          },
-        };
-      }
-      return item;
-    });
-
-    await fetch(
-      `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/settings/discounts?updateMask.fieldPaths=codes&key=AIzaSyAhd2t2lx8ooUYEdlll2V0YLSCq3QgOK2k`,
-      {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fields: {
-            codes: { arrayValue: { values: updatedList } },
-          },
-        }),
-      }
-    );
-  } catch (err) {
-    console.error('Failed to increment discount code usage count:', err);
   }
 }
 
