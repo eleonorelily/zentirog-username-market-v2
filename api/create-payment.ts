@@ -44,8 +44,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const { usernameId, username, customerEmail, customerDiscord, discountCode } = req.body;
 
-    if (!username || !customerEmail) {
-      return res.status(400).json({ error: 'Missing required checkout parameters.' });
+    if (typeof username !== 'string' || typeof customerEmail !== 'string' || !username.trim() || !customerEmail.trim()) {
+      return res.status(400).json({ error: 'Invalid or missing required checkout parameters.' });
     }
 
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customerEmail)) {

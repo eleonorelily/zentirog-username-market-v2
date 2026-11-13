@@ -79,8 +79,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // 1. NATIVE MONGO LOGIN ENDPOINT
   if (req.method === 'POST' && action === 'login') {
     const { email, password } = req.body;
-    if (!email || !password) {
-      return res.status(400).json({ error: 'Missing email or password.' });
+    if (typeof email !== 'string' || typeof password !== 'string' || !email.trim() || !password) {
+      return res.status(400).json({ error: 'Invalid email or password format.' });
     }
 
     const adminUser = await colAdmins.findOne({ email: email.trim().toLowerCase() });
