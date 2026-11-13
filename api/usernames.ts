@@ -1,20 +1,16 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import clientPromise from './_mongo';
+import { getMongoDb } from './_mongo';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // Allow caching for 10 seconds on browser, 30 seconds on CDN
-  res.setHeader('Cache-Control', 's-maxage=30, stale-while-revalidate=60');
+  res.setHeader('Cache-Control', 's-maxage=10, stale-while-revalidate=30');
 
   try {
-    const client = await clientPromise;
-    const db = client.db('zentirog');
+    const db = await getMongoDb();
     const collection = db.collection('usernames');
 
     if (req.method === 'GET') {
-      // Find all public usernames
       const docs = await collection.find({ public: { $ne: false } }).toArray();
 
-      // Strip credentials for public view
       const sanitized = docs.map((doc: any) => ({
         id: doc._id.toString(),
         username: doc.username || '',
@@ -27,7 +23,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         isBest4: Boolean(doc.isBest4),
         priority: doc.priority || 'none',
         public: true,
-        credentials: '', // strictly removed
+        credentials: '',
         createdAt: doc.createdAt || Date.now(),
         updatedAt: doc.updatedAt || Date.now(),
       }));

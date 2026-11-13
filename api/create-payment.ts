@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import crypto from 'node:crypto';
 import { Resend } from 'resend';
-import clientPromise from './_mongo';
+import { getMongoDb } from './_mongo';
 import { ObjectId } from 'mongodb';
 
 const CRYPTOMUS_MERCHANT_ID = process.env.CRYPTOMUS_MERCHANT_ID || '';
@@ -47,8 +47,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     let firestoreDocId = usernameId;
 
     try {
-      const client = await clientPromise;
-      const db = client.db('zentirog');
+      const db = await getMongoDb();
       const cleanHandle = username.startsWith('@') ? username : `@${username}`;
 
       let doc = null;
