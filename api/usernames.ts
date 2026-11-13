@@ -1,39 +1,34 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { getMongoDb } from './_mongo';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  res.setHeader('Cache-Control', 's-maxage=10, stale-while-revalidate=30');
-
   try {
-    const db = await getMongoDb();
-    const collection = db.collection('usernames');
+    const { MongoClient } = await import('mongodb');
+    const uri = process.env.MONGODB_URI || 'mongodb+srv://harryuchiha:l17Fgoa6Fstkga7s@cluster0.bnfc8xm.mongodb.net/zentirog?retryWrites=true&w=majority';
+    const client = new MongoClient(uri);
+    await client.connect();
+    const db = client.db('zentirog');
+    const docs = await db.collection('usernames').find({ public: { $ne: false } }).toArray();
+    await client.close();
 
-    if (req.method === 'GET') {
-      const docs = await collection.find({ public: { $ne: false } }).toArray();
+    const sanitized = docs.map((doc: any) => ({
+      id: doc._id.toString(),
+      username: doc.username || '',
+      price: doc.price || '',
+      description: doc.description || '',
+      category: doc.category || 'Semi usernames',
+      isNew: Boolean(doc.isNew),
+      isHot: Boolean(doc.isHot),
+      isSold: Boolean(doc.isSold),
+      isBest4: Boolean(doc.isBest4),
+      priority: doc.priority || 'none',
+      public: true,
+      credentials: '',
+      createdAt: doc.createdAt || Date.now(),
+      updatedAt: doc.updatedAt || Date.now(),
+    }));
 
-      const sanitized = docs.map((doc: any) => ({
-        id: doc._id.toString(),
-        username: doc.username || '',
-        price: doc.price || '',
-        description: doc.description || '',
-        category: doc.category || 'Semi usernames',
-        isNew: Boolean(doc.isNew),
-        isHot: Boolean(doc.isHot),
-        isSold: Boolean(doc.isSold),
-        isBest4: Boolean(doc.isBest4),
-        priority: doc.priority || 'none',
-        public: true,
-        credentials: '',
-        createdAt: doc.createdAt || Date.now(),
-        updatedAt: doc.updatedAt || Date.now(),
-      }));
-
-      return res.status(200).json(sanitized);
-    }
-
-    return res.status(405).json({ error: 'Method Not Allowed' });
+    return res.status(200).json(sanitized);
   } catch (error: any) {
-    console.error('MongoDB usernames API error:', error);
-    return res.status(500).json({ error: error.message || 'Database error' });
+    return res.status(500).json({ error: error.message || 'Error connecting to database', stack: error.stack });
   }
 }
