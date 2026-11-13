@@ -55,7 +55,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     setDiscountMessage(null);
 
     try {
-      // Validate via our own MongoDB-backed API — no Firebase
+      // Validate promo code via MongoDB-backed API endpoint
       const res = await fetch('/api/admin?action=validate_discount', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

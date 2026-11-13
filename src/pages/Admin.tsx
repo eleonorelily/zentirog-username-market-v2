@@ -850,7 +850,7 @@ const Admin = () => {
                   disabled={isLoading}
                   className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-black font-mono font-bold text-xs uppercase"
                 >
-                  Confirm Confirm & Replace Firestore List Replace MongoDB List
+                  Confirm & Replace MongoDB List
                 </button>
                 <button
                   onClick={() => setImportPreview(null)}

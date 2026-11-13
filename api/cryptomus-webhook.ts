@@ -129,7 +129,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       console.error('MongoDB update error in cryptomus webhook:', mongoErr);
     }
 
-    // MongoDB already updated above. No Firestore fallback needed.
+    // MongoDB status and credentials updated above.
 
     // Dispatch automated delivery email to customer
     if (customerEmail) {
