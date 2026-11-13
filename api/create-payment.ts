@@ -1,8 +1,21 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import crypto from 'node:crypto';
 import { Resend } from 'resend';
-import { getMongoDb } from './_mongo';
-import { ObjectId } from 'mongodb';
+import { MongoClient, ObjectId } from 'mongodb';
+
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://harryuchiha:l17Fgoa6Fstkga7s@cluster0.bnfc8xm.mongodb.net/zentirog?retryWrites=true&w=majority';
+let cachedMongoClient: MongoClient | null = null;
+
+async function getMongoDatabase() {
+  if (!cachedMongoClient) {
+    cachedMongoClient = new MongoClient(MONGODB_URI, {
+      connectTimeoutMS: 5000,
+      serverSelectionTimeoutMS: 5000,
+    });
+    await cachedMongoClient.connect();
+  }
+  return cachedMongoClient.db('zentirog');
+}
 
 const CRYPTOMUS_MERCHANT_ID = process.env.CRYPTOMUS_MERCHANT_ID || '';
 const CRYPTOMUS_PAYMENT_KEY = process.env.CRYPTOMUS_PAYMENT_KEY || '';
@@ -47,7 +60,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     let firestoreDocId = usernameId;
 
     try {
-      const db = await getMongoDb();
+      const db = await getMongoDatabase();
       const cleanHandle = username.startsWith('@') ? username : `@${username}`;
 
       let doc = null;
