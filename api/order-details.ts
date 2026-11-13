@@ -1,8 +1,22 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import crypto from 'node:crypto';
+import { MongoClient } from 'mongodb';
+
+const MONGODB_URI = process.env.MONGODB_URI || '';
+let cachedMongoClient: MongoClient | null = null;
+
+async function getMongoDatabase() {
+  if (!cachedMongoClient) {
+    cachedMongoClient = new MongoClient(MONGODB_URI, {
+      connectTimeoutMS: 5000,
+      serverSelectionTimeoutMS: 5000,
+    });
+    await cachedMongoClient.connect();
+  }
+  return cachedMongoClient.db('zentirog');
+}
 
 const CRYPTOMUS_PAYMENT_KEY = process.env.CRYPTOMUS_PAYMENT_KEY || process.env.ORDER_TOKEN_SECRET || '';
-const FIREBASE_PROJECT_ID = 'zentirog-market-2026';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET') {
@@ -28,54 +42,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const cleanHandle = String(handle).startsWith('@') ? String(handle) : `@${handle}`;
 
-    // Read credentials from Firestore for this handle (including public == true filter and API key to satisfy security rules)
-    const queryRes = await fetch(
-      `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents:runQuery?key=AIzaSyAhd2t2lx8ooUYEdlll2V0YLSCq3QgOK2k`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          structuredQuery: {
-            from: [{ collectionId: 'usernames' }],
-            where: {
-              compositeFilter: {
-                op: 'AND',
-                filters: [
-                  {
-                    fieldFilter: {
-                      field: { fieldPath: 'username' },
-                      op: 'EQUAL',
-                      value: { stringValue: cleanHandle },
-                    },
-                  },
-                  {
-                    fieldFilter: {
-                      field: { fieldPath: 'public' },
-                      op: 'EQUAL',
-                      value: { booleanValue: true },
-                    },
-                  },
-                ],
-              },
-            },
-            limit: 1,
-          },
-        }),
-      }
-    );
+    const db = await getMongoDatabase();
+    const doc = await db.collection('usernames').findOne({ username: cleanHandle });
 
-    if (!queryRes.ok) {
-      return res.status(500).json({ error: 'Database query failed' });
-    }
-
-    const queryJson = await queryRes.json();
-    const firstDoc = queryJson[0]?.document;
-
-    if (!firstDoc) {
+    if (!doc) {
       return res.status(404).json({ error: 'Identifier not found' });
     }
 
-    const credentials = firstDoc.fields?.credentials?.stringValue || '';
+    const credentials = doc.credentials || '';
 
     return res.status(200).json({
       success: true,
@@ -84,6 +58,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       credentials,
     });
   } catch (err: any) {
+    console.error('Order details error:', err);
     return res.status(500).json({ error: err.message || 'Server error' });
   }
 }
