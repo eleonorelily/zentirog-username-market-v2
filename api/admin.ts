@@ -1,8 +1,9 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { MongoClient, ObjectId } from 'mongodb';
+import crypto from 'node:crypto';
 
 const MONGODB_URI = process.env.MONGODB_URI || '';
-const FIREBASE_API_KEY = process.env.FIREBASE_API_KEY || 'AIzaSyAhd2t2lx8ooUYEdlll2V0YLSCq3QgOK2k';
+const ADMIN_JWT_SECRET = process.env.CRYPTOMUS_PAYMENT_KEY || process.env.ORDER_TOKEN_SECRET || 'zentirog-secret-jwt-key-2026';
 
 let cachedMongoClient: MongoClient | null = null;
 
@@ -17,59 +18,103 @@ async function getMongoDatabase() {
   return cachedMongoClient.db('zentirog');
 }
 
-// Verify Firebase Auth ID token so only the authenticated admin can call these APIs
-async function verifyAdminAuth(req: VercelRequest): Promise<{ uid: string; email: string } | null> {
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return null;
-  }
-  const idToken = authHeader.split('Bearer ')[1]?.trim();
-  if (!idToken) return null;
+function verifyPassword(password: string, salt: string, hash: string): boolean {
+  const testHash = crypto.pbkdf2Sync(password, salt, 100000, 64, 'sha512').toString('hex');
+  return crypto.timingSafeEqual(Buffer.from(testHash, 'hex'), Buffer.from(hash, 'hex'));
+}
 
+function createSessionToken(email: string): string {
+  const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
+  const payload = Buffer.from(
+    JSON.stringify({
+      email,
+      iat: Math.floor(Date.now() / 1000),
+      exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 7, // 7 days session
+    })
+  ).toString('base64url');
+  const signature = crypto
+    .createHmac('sha256', ADMIN_JWT_SECRET)
+    .update(`${header}.${payload}`)
+    .digest('base64url');
+  return `${header}.${payload}.${signature}`;
+}
+
+function verifySessionToken(token: string): { email: string } | null {
   try {
-    const res = await fetch(
-      `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${FIREBASE_API_KEY}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ idToken }),
-      }
-    );
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+    const [header, payload, signature] = parts;
 
-    if (!res.ok) return null;
-    const data = await res.json();
-    const user = data.users?.[0];
-    if (!user || !user.localId) return null;
+    const expectedSignature = crypto
+      .createHmac('sha256', ADMIN_JWT_SECRET)
+      .update(`${header}.${payload}`)
+      .digest('base64url');
 
-    return {
-      uid: user.localId,
-      email: user.email || '',
-    };
-  } catch (err) {
-    console.error('Token verification error:', err);
+    if (!crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSignature))) {
+      return null;
+    }
+
+    const decoded = JSON.parse(Buffer.from(payload, 'base64url').toString('utf-8'));
+    if (decoded.exp && decoded.exp < Math.floor(Date.now() / 1000)) {
+      return null;
+    }
+    return { email: decoded.email };
+  } catch {
     return null;
   }
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // CORS & method preflight
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
 
-  const admin = await verifyAdminAuth(req);
-  if (!admin) {
-    return res.status(401).json({ error: 'Unauthorized: Valid admin authentication required.' });
-  }
-
   const db = await getMongoDatabase();
+  const colAdmins = db.collection('admins');
   const colUsernames = db.collection('usernames');
   const colSettings = db.collection('settings');
 
   const action = req.query.action || req.body?.action;
 
+  // 1. NATIVE MONGO LOGIN ENDPOINT
+  if (req.method === 'POST' && action === 'login') {
+    const { email, password } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Missing email or password.' });
+    }
+
+    const adminUser = await colAdmins.findOne({ email: email.trim().toLowerCase() });
+    if (!adminUser || !adminUser.salt || !adminUser.hash) {
+      return res.status(401).json({ error: 'Invalid operator credentials.' });
+    }
+
+    const isValid = verifyPassword(password, adminUser.salt, adminUser.hash);
+    if (!isValid) {
+      return res.status(401).json({ error: 'Invalid operator credentials.' });
+    }
+
+    const token = createSessionToken(adminUser.email);
+    return res.status(200).json({
+      success: true,
+      token,
+      email: adminUser.email,
+    });
+  }
+
+  // ALL OTHER ACTIONS REQUIRE NATIVE SESSION TOKEN
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Unauthorized: Missing admin session token.' });
+  }
+
+  const token = authHeader.split('Bearer ')[1]?.trim();
+  const session = verifySessionToken(token);
+  if (!session) {
+    return res.status(401).json({ error: 'Unauthorized: Invalid or expired admin session.' });
+  }
+
   try {
-    // 1. GET ALL USERNAMES (Including credentials for admin)
+    // 2. GET ALL USERNAMES (Including credentials for authenticated admin)
     if (req.method === 'GET' && (!action || action === 'usernames')) {
       const docs = await colUsernames.find({}).sort({ username: 1 }).toArray();
       const formatted = docs.map((doc) => ({
@@ -91,7 +136,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(200).json(formatted);
     }
 
-    // 2. GET SETTINGS & DISCOUNT CODES
+    // 3. GET SETTINGS & DISCOUNT CODES
     if (req.method === 'GET' && action === 'settings') {
       const configDoc = await colSettings.findOne({ _id: 'config' as any });
       const discountsDoc = await colSettings.findOne({ _id: 'discounts' as any });
@@ -102,7 +147,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
 
-    // 3. SAVE / UPDATE SINGLE USERNAME
+    // 4. SAVE / UPDATE SINGLE USERNAME
     if (req.method === 'POST' && action === 'save_username') {
       const { username: item } = req.body;
       if (!item || !item.username) {
@@ -141,7 +186,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(200).json({ success: true, message: `Saved ${item.username}` });
     }
 
-    // 4. DELETE USERNAME
+    // 5. DELETE USERNAME
     if (req.method === 'POST' && action === 'delete_username') {
       const { id } = req.body;
       if (!id) return res.status(400).json({ error: 'Missing id to delete.' });
@@ -154,14 +199,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(200).json({ success: true, message: 'Deleted successfully.' });
     }
 
-    // 5. REPLACE ENTIRE USERNAME DATABASE (IMPORT BULK)
+    // 6. REPLACE ENTIRE DATABASE (IMPORT BULK)
     if (req.method === 'POST' && action === 'replace_all') {
       const { items } = req.body;
       if (!Array.isArray(items)) {
         return res.status(400).json({ error: 'Items must be an array.' });
       }
 
-      // Preserve existing credentials where usernames match
       const existing = await colUsernames.find({}).toArray();
       const existingMap = new Map();
       existing.forEach((d) => existingMap.set(d.username.toLowerCase(), d));
@@ -194,7 +238,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(200).json({ success: true, count: ops.length });
     }
 
-    // 6. SAVE SETTINGS (DISCORD LINK)
+    // 7. SAVE SETTINGS (DISCORD LINK)
     if (req.method === 'POST' && action === 'save_settings') {
       const { discordServerLink } = req.body;
       await colSettings.updateOne(
@@ -210,7 +254,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(200).json({ success: true, message: 'Settings saved in MongoDB.' });
     }
 
-    // 7. SAVE DISCOUNT CODES
+    // 8. SAVE DISCOUNT CODES
     if (req.method === 'POST' && action === 'save_discounts') {
       const { codes } = req.body;
       if (!Array.isArray(codes)) {

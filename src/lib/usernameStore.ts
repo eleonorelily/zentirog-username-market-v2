@@ -1,4 +1,3 @@
-import { auth } from './firebase';
 import { fetchLegacyUsernames, normalizeHandle, normalizePrice } from './usernameParser';
 import type { Username } from '@/types/username';
 import type { AppSettings } from '@/types/settings';
@@ -6,17 +5,57 @@ import type { DiscountCode } from '@/types/discount';
 
 export const DEFAULT_DISCORD_LINK = 'https://discord.gg/5WC6sH2rrj';
 
-async function getAuthHeader(): Promise<HeadersInit> {
-  const currentUser = auth.currentUser;
-  if (!currentUser) return {};
-  const token = await currentUser.getIdToken();
+const TOKEN_KEY = 'zentirog_mongo_admin_token';
+const EMAIL_KEY = 'zentirog_mongo_admin_email';
+
+export function getStoredAdminToken(): string | null {
+  return localStorage.getItem(TOKEN_KEY);
+}
+
+export function getStoredAdminEmail(): string | null {
+  return localStorage.getItem(EMAIL_KEY);
+}
+
+export function setStoredAdminSession(token: string, email: string): void {
+  localStorage.setItem(TOKEN_KEY, token);
+  localStorage.setItem(EMAIL_KEY, email);
+}
+
+export function clearStoredAdminSession(): void {
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(EMAIL_KEY);
+}
+
+export async function loginAdminMongo(email: string, password: string): Promise<{ success: boolean; token: string; email: string }> {
+  const res = await fetch('/api/admin', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      action: 'login',
+      email,
+      password,
+    }),
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error || 'Authentication rejected by MongoDB.');
+  }
+
+  setStoredAdminSession(data.token, data.email);
+  return data;
+}
+
+function getAuthHeader(): HeadersInit {
+  const token = getStoredAdminToken();
+  if (!token) return { 'Content-Type': 'application/json' };
   return {
     Authorization: `Bearer ${token}`,
     'Content-Type': 'application/json',
   };
 }
 
-// 1. Fetch public usernames for storefront
+// 1. Fetch public usernames for storefront (MongoDB)
 export const fetchPublishedUsernames = async (): Promise<Username[]> => {
   try {
     const res = await fetch('/api/usernames');
@@ -32,12 +71,15 @@ export const fetchPublishedUsernames = async (): Promise<Username[]> => {
   return [];
 };
 
-// 2. Fetch all usernames for Admin (includes credentials)
+// 2. Fetch all usernames for Admin (MongoDB)
 export const fetchAdminUsernames = async (): Promise<Username[]> => {
-  const headers = await getAuthHeader();
+  const headers = getAuthHeader();
   const res = await fetch('/api/admin?action=usernames', { headers });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
+    if (res.status === 401) {
+      clearStoredAdminSession();
+    }
     throw new Error(err.error || 'Failed to fetch admin usernames from MongoDB');
   }
   return res.json();
@@ -45,7 +87,7 @@ export const fetchAdminUsernames = async (): Promise<Username[]> => {
 
 // 3. Save / Update single username in MongoDB
 export const saveUsername = async (username: Username): Promise<void> => {
-  const headers = await getAuthHeader();
+  const headers = getAuthHeader();
   const res = await fetch('/api/admin', {
     method: 'POST',
     headers,
@@ -62,7 +104,7 @@ export const saveUsername = async (username: Username): Promise<void> => {
 
 // 4. Remove username in MongoDB
 export const removeUsername = async (id: string): Promise<void> => {
-  const headers = await getAuthHeader();
+  const headers = getAuthHeader();
   const res = await fetch('/api/admin', {
     method: 'POST',
     headers,
@@ -79,7 +121,7 @@ export const removeUsername = async (id: string): Promise<void> => {
 
 // 5. Replace entire database with imported list
 export const replaceUsernameList = async (items: Username[]): Promise<number> => {
-  const headers = await getAuthHeader();
+  const headers = getAuthHeader();
   const res = await fetch('/api/admin', {
     method: 'POST',
     headers,
@@ -99,7 +141,7 @@ export const replaceUsernameList = async (items: Username[]): Promise<number> =>
 // 6. Fetch App Settings (Discord Link)
 export const fetchAppSettings = async (): Promise<AppSettings> => {
   try {
-    const headers = await getAuthHeader();
+    const headers = getAuthHeader();
     const res = await fetch('/api/admin?action=settings', { headers });
     if (res.ok) {
       const data = await res.json();
@@ -115,7 +157,7 @@ export const fetchAppSettings = async (): Promise<AppSettings> => {
 
 // 7. Save App Settings (Discord Link)
 export const saveAppSettings = async (settings: AppSettings): Promise<void> => {
-  const headers = await getAuthHeader();
+  const headers = getAuthHeader();
   const res = await fetch('/api/admin', {
     method: 'POST',
     headers,
@@ -133,7 +175,7 @@ export const saveAppSettings = async (settings: AppSettings): Promise<void> => {
 // 8. Fetch Discount Codes
 export const fetchDiscountCodes = async (): Promise<DiscountCode[]> => {
   try {
-    const headers = await getAuthHeader();
+    const headers = getAuthHeader();
     const res = await fetch('/api/admin?action=settings', { headers });
     if (res.ok) {
       const data = await res.json();
@@ -147,7 +189,7 @@ export const fetchDiscountCodes = async (): Promise<DiscountCode[]> => {
 
 // 9. Save Discount Codes
 export const saveDiscountCodes = async (codes: DiscountCode[]): Promise<void> => {
-  const headers = await getAuthHeader();
+  const headers = getAuthHeader();
   const res = await fetch('/api/admin', {
     method: 'POST',
     headers,

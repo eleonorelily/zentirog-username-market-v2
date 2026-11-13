@@ -1,6 +1,10 @@
 import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from 'react';
-import { onAuthStateChanged, signInWithEmailAndPassword, signOut, type User } from 'firebase/auth';
-import { auth } from '@/lib/firebase';
+import {
+  getStoredAdminEmail,
+  getStoredAdminToken,
+  loginAdminMongo,
+  clearStoredAdminSession,
+} from '@/lib/usernameStore';
 import {
   DEFAULT_DISCORD_LINK,
   fetchAdminUsernames,
@@ -67,8 +71,8 @@ const getAdminErrorMessage = (error: unknown, fallback: string) => {
 };
 
 const Admin = () => {
-  const [user, setUser] = useState<User | null>(null);
-  const [authReady, setAuthReady] = useState(false);
+  const [adminEmail, setAdminEmail] = useState<string | null>(getStoredAdminEmail);
+  const [authReady, setAuthReady] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [authError, setAuthError] = useState('');
@@ -96,10 +100,14 @@ const Admin = () => {
   const [newCodeMaxUses, setNewCodeMaxUses] = useState('0');
 
   useEffect(() => {
-    return onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-      setAuthReady(true);
-    });
+    const token = getStoredAdminToken();
+    const email = getStoredAdminEmail();
+    if (token && email) {
+      setAdminEmail(email);
+    } else {
+      setAdminEmail(null);
+    }
+    setAuthReady(true);
   }, []);
 
   const loadData = async () => {
@@ -123,10 +131,10 @@ const Admin = () => {
   };
 
   useEffect(() => {
-    if (user) {
+    if (adminEmail) {
       void loadData();
     }
-  }, [user]);
+  }, [adminEmail]);
 
   const filteredUsernames = useMemo(() => {
     const needle = search.trim().toLowerCase();
@@ -182,12 +190,13 @@ const Admin = () => {
     setAuthError('');
     setIsSigningIn(true);
     try {
-      await signInWithEmailAndPassword(auth, email.trim(), password);
+      const res = await loginAdminMongo(email.trim(), password);
+      setAdminEmail(res.email);
       setPassword('');
       setFailedAttempts(0);
       setLockedUntil(null);
       localStorage.removeItem('admin_login_lockout');
-    } catch {
+    } catch (err: any) {
       const newAttempts = failedAttempts + 1;
       setFailedAttempts(newAttempts);
       if (newAttempts >= 5) {
@@ -196,7 +205,7 @@ const Admin = () => {
         localStorage.setItem('admin_login_lockout', JSON.stringify({ attempts: newAttempts, lockedUntil: lockoutTime }));
         setAuthError('Too many failed attempts. Security lockout active for 5 minutes.');
       } else {
-        setAuthError(`Authentication rejected. (${5 - newAttempts} attempts remaining before lockout).`);
+        setAuthError(err.message || `Authentication rejected. (${5 - newAttempts} attempts remaining before lockout).`);
       }
     } finally {
       setIsSigningIn(false);
@@ -460,7 +469,7 @@ const Admin = () => {
   }
 
   // Login Screen
-  if (!user) {
+  if (!adminEmail) {
     return (
       <div className="min-h-screen bg-[#090a0d] flex items-center justify-center p-4 text-[#eaebee] font-sans">
         <div className="border border-[#262830] bg-[#101115] max-w-md w-full p-6 sm:p-8 space-y-6">
@@ -543,7 +552,7 @@ const Admin = () => {
 
           <div className="flex items-center gap-3 sm:gap-4 text-xs font-mono">
             <span className="text-neutral-400 hidden md:inline truncate max-w-xs">
-              {user.email}
+              {adminEmail}
             </span>
             <a
               href="/"
@@ -554,7 +563,10 @@ const Admin = () => {
               Live Vault ↗
             </a>
             <button
-              onClick={() => signOut(auth)}
+              onClick={() => {
+                clearStoredAdminSession();
+                setAdminEmail(null);
+              }}
               className="px-3 py-1.5 border border-red-900/40 bg-[#160d0f] hover:bg-[#201013] text-red-300 uppercase tracking-wider transition-colors"
             >
               Exit
