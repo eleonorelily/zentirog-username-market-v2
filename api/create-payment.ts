@@ -115,14 +115,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: 'This identifier has already been claimed/sold.' });
     }
 
-    // Quota fallback if Firestore free quota is throttled
-    if (realPrice <= 0 && req.body.amount) {
-      const fallbackAmount = parsePriceToNumber(String(req.body.amount));
-      if (fallbackAmount > 0) {
-        realPrice = fallbackAmount;
-      }
-    }
-
     if (realPrice <= 0) {
       return res.status(400).json({ error: 'Could not verify identifier price in official database.' });
     }
