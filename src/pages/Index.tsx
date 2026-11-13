@@ -61,7 +61,7 @@ const Index = () => {
   const { data: usernames = [], isLoading, error } = useQuery({
     queryKey: ['usernames'],
     queryFn: fetchPublishedUsernames,
-    refetchInterval: 30000,
+    staleTime: 60000, // Cache for 1 full minute to prevent unnecessary re-fetching
   });
 
   const availableUsernames = useMemo(() => usernames.filter(u => !u.isSold), [usernames]);

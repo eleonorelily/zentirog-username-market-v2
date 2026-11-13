@@ -53,17 +53,35 @@ const fromFirestore = (id: string, data: Record<string, unknown>): Username => (
 });
 
 export const fetchPublishedUsernames = async (): Promise<Username[]> => {
-  const snapshot = await getDocs(query(usernamesCollection, where('public', '==', true)));
-  return snapshot.docs
-    .map((item) => {
-      const u = fromFirestore(item.id, item.data());
-      // Strip credentials from client view for security
-      return {
-        ...u,
-        credentials: '',
-      };
-    })
-    .filter((item) => item.username && item.price);
+  // First try high-performance MongoDB endpoint (zero daily quota traps)
+  try {
+    const res = await fetch('/api/usernames');
+    if (res.ok) {
+      const items = await res.json();
+      if (Array.isArray(items) && items.length > 0) {
+        return items;
+      }
+    }
+  } catch (err) {
+    console.warn('API usernames fallback to Firestore:', err);
+  }
+
+  // Fallback to Firestore if needed
+  try {
+    const snapshot = await getDocs(query(usernamesCollection, where('public', '==', true)));
+    return snapshot.docs
+      .map((item) => {
+        const u = fromFirestore(item.id, item.data());
+        return {
+          ...u,
+          credentials: '',
+        };
+      })
+      .filter((item) => item.username && item.price);
+  } catch (dbErr) {
+    console.error('Database read error:', dbErr);
+    return [];
+  }
 };
 
 export const fetchAdminUsernames = async (): Promise<Username[]> => {

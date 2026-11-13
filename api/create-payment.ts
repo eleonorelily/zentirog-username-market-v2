@@ -1,6 +1,8 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import crypto from 'node:crypto';
 import { Resend } from 'resend';
+import clientPromise from './_mongo';
+import { ObjectId } from 'mongodb';
 
 const CRYPTOMUS_MERCHANT_ID = process.env.CRYPTOMUS_MERCHANT_ID || '';
 const CRYPTOMUS_PAYMENT_KEY = process.env.CRYPTOMUS_PAYMENT_KEY || '';
@@ -37,76 +39,106 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: 'Invalid email address provided.' });
     }
 
-    // 1. Fetch source of truth directly from Firestore to prevent frontend price tampering
+    // 1. Fetch source of truth directly from MongoDB (and fallback to Firestore if needed)
     let realPrice = 0;
     let actualUsername = username;
     let credentials = '';
     let isSold = false;
     let firestoreDocId = usernameId;
 
-    if (usernameId) {
-      const docRes = await fetch(
-        `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/usernames/${usernameId}?key=AIzaSyAhd2t2lx8ooUYEdlll2V0YLSCq3QgOK2k`
-      );
-      if (docRes.ok) {
-        const docJson = await docRes.json();
-        const fields = docJson.fields || {};
-        isSold = fields.isSold?.booleanValue || fields.price?.stringValue === 'SOLD';
-        realPrice = parsePriceToNumber(fields.price?.stringValue || '');
-        actualUsername = fields.username?.stringValue || username;
-        credentials = fields.credentials?.stringValue || '';
+    try {
+      const client = await clientPromise;
+      const db = client.db('zentirog');
+      const cleanHandle = username.startsWith('@') ? username : `@${username}`;
+
+      let doc = null;
+      if (usernameId && ObjectId.isValid(usernameId)) {
+        doc = await db.collection('usernames').findOne({ _id: new ObjectId(usernameId) });
       }
+      if (!doc) {
+        doc = await db.collection('usernames').findOne({ username: cleanHandle });
+      }
+
+      if (doc) {
+        isSold = Boolean(doc.isSold || doc.price === 'SOLD');
+        realPrice = parsePriceToNumber(doc.price || '');
+        actualUsername = doc.username || username;
+        credentials = doc.credentials || '';
+        firestoreDocId = doc._id.toString();
+      }
+    } catch (mongoErr) {
+      console.warn('MongoDB lookup error in create-payment:', mongoErr);
     }
 
+    // Secondary fallback to Firestore if not found in MongoDB
     if (!realPrice) {
-      // Fallback query by username if usernameId was omitted
-      const cleanHandle = username.startsWith('@') ? username : `@${username}`;
-      const queryRes = await fetch(
-        `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents:runQuery?key=AIzaSyAhd2t2lx8ooUYEdlll2V0YLSCq3QgOK2k`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            structuredQuery: {
-              from: [{ collectionId: 'usernames' }],
-              where: {
-                compositeFilter: {
-                  op: 'AND',
-                  filters: [
-                    {
-                      fieldFilter: {
-                        field: { fieldPath: 'username' },
-                        op: 'EQUAL',
-                        value: { stringValue: cleanHandle },
-                      },
+      if (usernameId) {
+        try {
+          const docRes = await fetch(
+            `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/usernames/${usernameId}?key=AIzaSyAhd2t2lx8ooUYEdlll2V0YLSCq3QgOK2k`
+          );
+          if (docRes.ok) {
+            const docJson = await docRes.json();
+            const fields = docJson.fields || {};
+            isSold = fields.isSold?.booleanValue || fields.price?.stringValue === 'SOLD';
+            realPrice = parsePriceToNumber(fields.price?.stringValue || '');
+            actualUsername = fields.username?.stringValue || username;
+            credentials = fields.credentials?.stringValue || '';
+          }
+        } catch {}
+      }
+
+      if (!realPrice) {
+        const cleanHandle = username.startsWith('@') ? username : `@${username}`;
+        try {
+          const queryRes = await fetch(
+            `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents:runQuery?key=AIzaSyAhd2t2lx8ooUYEdlll2V0YLSCq3QgOK2k`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                structuredQuery: {
+                  from: [{ collectionId: 'usernames' }],
+                  where: {
+                    compositeFilter: {
+                      op: 'AND',
+                      filters: [
+                        {
+                          fieldFilter: {
+                            field: { fieldPath: 'username' },
+                            op: 'EQUAL',
+                            value: { stringValue: cleanHandle },
+                          },
+                        },
+                        {
+                          fieldFilter: {
+                            field: { fieldPath: 'public' },
+                            op: 'EQUAL',
+                            value: { booleanValue: true },
+                          },
+                        },
+                      ],
                     },
-                    {
-                      fieldFilter: {
-                        field: { fieldPath: 'public' },
-                        op: 'EQUAL',
-                        value: { booleanValue: true },
-                      },
-                    },
-                  ],
+                  },
+                  limit: 1,
                 },
-              },
-              limit: 1,
-            },
-          }),
-        }
-      );
-      if (queryRes.ok) {
-        const queryJson = await queryRes.json();
-        const firstDoc = queryJson[0]?.document;
-        if (firstDoc) {
-          const fields = firstDoc.fields || {};
-          const pathParts = firstDoc.name.split('/');
-          firestoreDocId = pathParts[pathParts.length - 1];
-          isSold = fields.isSold?.booleanValue || fields.price?.stringValue === 'SOLD';
-          realPrice = parsePriceToNumber(fields.price?.stringValue || '');
-          actualUsername = fields.username?.stringValue || username;
-          credentials = fields.credentials?.stringValue || '';
-        }
+              }),
+            }
+          );
+          if (queryRes.ok) {
+            const queryJson = await queryRes.json();
+            const firstDoc = queryJson[0]?.document;
+            if (firstDoc) {
+              const fields = firstDoc.fields || {};
+              const pathParts = firstDoc.name.split('/');
+              firestoreDocId = pathParts[pathParts.length - 1];
+              isSold = fields.isSold?.booleanValue || fields.price?.stringValue === 'SOLD';
+              realPrice = parsePriceToNumber(fields.price?.stringValue || '');
+              actualUsername = fields.username?.stringValue || username;
+              credentials = fields.credentials?.stringValue || '';
+            }
+          }
+        } catch {}
       }
     }
 
