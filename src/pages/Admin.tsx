@@ -114,7 +114,7 @@ const Admin = () => {
       setUsernames(list);
       setDiscordLinkInput(settings.discordServerLink || DEFAULT_DISCORD_LINK);
       setDiscountCodes(codes);
-      setStatus('Vault data & settings synchronized.');
+      setStatus('Vault data & settings synchronized with MongoDB Atlas (Cluster0).');
     } catch (error) {
       setStatus(getAdminErrorMessage(error, 'Could not load vault data.'));
     } finally {
@@ -537,7 +537,7 @@ const Admin = () => {
               ZENTIROG
             </span>
             <span className="text-[10px] font-mono uppercase bg-[#181a20] border border-[#282a34] text-[#d4af37] px-1.5 py-0.5">
-              ADMIN CONTROL
+              ADMIN CONTROL • MONGO CLUSTER0
             </span>
           </div>
 
@@ -838,7 +838,7 @@ const Admin = () => {
                   disabled={isLoading}
                   className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-black font-mono font-bold text-xs uppercase"
                 >
-                  Confirm & Replace Firestore List
+                  Confirm Confirm & Replace Firestore List Replace MongoDB List
                 </button>
                 <button
                   onClick={() => setImportPreview(null)}
