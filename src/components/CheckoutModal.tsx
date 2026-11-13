@@ -1,11 +1,20 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import type { Username } from '@/types/username';
+import { QRCodeSVG } from 'qrcode.react';
 
 interface CheckoutModalProps {
   isOpen: boolean;
   onClose: () => void;
   username: Username | null;
   discordLink?: string;
+}
+
+interface LtcOrderState {
+  orderId: string;
+  usdAmount: number;
+  ltcAmount: number;
+  ltcAddress: string;
+  qrValue: string;
 }
 
 export const CheckoutModal: React.FC<CheckoutModalProps> = ({
@@ -28,9 +37,70 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  // LTC Autonomous Gateway State
+  const [ltcOrder, setLtcOrder] = useState<LtcOrderState | null>(null);
+  const [copiedAddress, setCopiedAddress] = useState(false);
+  const [copiedAmount, setCopiedAmount] = useState(false);
+  const [copiedCreds, setCopiedCreds] = useState(false);
+  const [unconfirmedDetected, setUnconfirmedDetected] = useState(false);
+  const [paymentSuccess, setPaymentSuccess] = useState(false);
+  const [deliveredCredentials, setDeliveredCredentials] = useState<string | null>(null);
+  const [pollStatusText, setPollStatusText] = useState('Listening to Litecoin network...');
+
+  const pollingRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Reset state when modal opens/closes
+  useEffect(() => {
+    if (!isOpen) {
+      setLtcOrder(null);
+      setPaymentSuccess(false);
+      setDeliveredCredentials(null);
+      setUnconfirmedDetected(false);
+      setError('');
+      if (pollingRef.current) clearInterval(pollingRef.current);
+    }
+  }, [isOpen]);
+
+  // Polling blockchain for incoming payment
+  useEffect(() => {
+    if (!ltcOrder || paymentSuccess) return;
+
+    const checkPayment = async () => {
+      try {
+        const res = await fetch('/api/ltc-check-payment', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ orderId: ltcOrder.orderId }),
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          if (data.paid) {
+            setPaymentSuccess(true);
+            setDeliveredCredentials(data.credentials || '');
+            if (pollingRef.current) clearInterval(pollingRef.current);
+          } else if (data.hasUnconfirmedTx) {
+            setUnconfirmedDetected(true);
+            setPollStatusText('⚡ Transaction detected on mempool! Confirming transfer...');
+          }
+        }
+      } catch (err) {
+        // quiet network poll retry
+      }
+    };
+
+    // Poll every 5 seconds
+    pollingRef.current = setInterval(checkPayment, 5000);
+    checkPayment();
+
+    return () => {
+      if (pollingRef.current) clearInterval(pollingRef.current);
+    };
+  }, [ltcOrder, paymentSuccess]);
+
   if (!isOpen || !username) return null;
 
-  // Extract base numerical price
+  // Extract base price
   const isSold = username.isSold || username.price === 'SOLD';
   const discountMatch = username.price.match(/\$(\d+(?:\.\d+)?)\s*\((\d+)%\s*off\s*\$(\d+(?:\.\d+)?)\)/);
   const basePriceNum = isSold
@@ -39,7 +109,6 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     ? parseFloat(discountMatch[1])
     : parseFloat(username.price.replace(/[^0-9.]/g, '')) || 0;
 
-  // Compute live discounted total
   let finalPriceNum = basePriceNum;
   if (appliedDiscount && appliedDiscount.percent > 0) {
     finalPriceNum = Math.max(0, basePriceNum * (1 - appliedDiscount.percent / 100));
@@ -55,13 +124,10 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     setDiscountMessage(null);
 
     try {
-      // Validate by querying public Firestore doc settings/discounts
       const res = await fetch(
         'https://firestore.googleapis.com/v1/projects/zentirog-market-2026/databases/(default)/documents/settings/discounts'
       );
-      if (!res.ok) {
-        throw new Error('Could not check promo codes at this time.');
-      }
+      if (!res.ok) throw new Error('Could not check promo codes at this time.');
       const data = await res.json();
       const codesList = data.fields?.codes?.arrayValue?.values || [];
 
@@ -120,13 +186,34 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     setLoading(true);
 
     try {
-      const response = await fetch('/api/create-payment', {
+      // 100% Free Promo branch uses existing instant redemption endpoint
+      if (isFreeCheckout) {
+        const response = await fetch('/api/create-payment', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            usernameId: username.id,
+            username: username.username,
+            amount: '$0.00',
+            customerEmail: email.trim(),
+            customerDiscord: discordUsername.trim(),
+            discountCode: appliedDiscount?.code || '',
+          }),
+        });
+        const data = await response.json();
+        if (data.redirectUrl) {
+          window.location.href = data.redirectUrl;
+          return;
+        }
+      }
+
+      // Autonomous LTC Order Generation
+      const response = await fetch('/api/ltc-create-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           usernameId: username.id,
           username: username.username,
-          amount: `$${basePriceNum.toFixed(2)}`,
           customerEmail: email.trim(),
           customerDiscord: discordUsername.trim(),
           discountCode: appliedDiscount?.code || '',
@@ -136,26 +223,34 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || 'Checkout process rejected.');
+        throw new Error(data.error || 'Failed to initialize payment.');
       }
 
-      // If 100% discount, redirect directly to order confirmation page
-      if (data.isFreeOrder && data.redirectUrl) {
-        window.location.href = data.redirectUrl;
-        return;
-      }
-
-      // Otherwise redirect to Cryptomus payment gateway
-      if (data.paymentUrl) {
-        window.location.href = data.paymentUrl;
-        return;
-      }
-
-      throw new Error('No payment destination URL returned.');
+      setLtcOrder({
+        orderId: data.orderId,
+        usdAmount: data.usdAmount,
+        ltcAmount: data.ltcAmount,
+        ltcAddress: data.ltcAddress,
+        qrValue: data.qrValue,
+      });
     } catch (err: any) {
-      setError(err.message || 'Payment initiation failed. Please try again.');
+      setError(err.message || 'Order initialization failed.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const copyToClipboard = (text: string, type: 'addr' | 'amt' | 'creds') => {
+    navigator.clipboard.writeText(text);
+    if (type === 'addr') {
+      setCopiedAddress(true);
+      setTimeout(() => setCopiedAddress(false), 2000);
+    } else if (type === 'amt') {
+      setCopiedAmount(true);
+      setTimeout(() => setCopiedAmount(false), 2000);
+    } else if (type === 'creds') {
+      setCopiedCreds(true);
+      setTimeout(() => setCopiedCreds(false), 2000);
     }
   };
 
@@ -163,13 +258,14 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     <div
       role="dialog"
       aria-modal="true"
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 font-sans"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 font-sans overflow-y-auto"
     >
-      <div className="w-full max-w-md bg-[#101115] border border-[#262830] text-[#eaebee] flex flex-col">
+      <div className="w-full max-w-lg bg-[#101115] border border-[#262830] text-[#eaebee] flex flex-col my-auto shadow-2xl">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-[#202228] px-5 py-3.5 bg-[#0d0e12]">
-          <span className="text-[10px] font-mono tracking-widest uppercase text-[#d4af37]">
-            INSTANT CRYPTO ACQUISITION
+          <span className="text-[10px] font-mono tracking-widest uppercase text-[#d4af37] flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-[#d4af37] animate-pulse"></span>
+            INSTANT CRYPTO ACQUISITION (LTC)
           </span>
           <button
             onClick={onClose}
@@ -180,219 +276,303 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         </div>
 
         <div className="p-6 space-y-5">
-          {/* Target Identifier Details */}
-          <div className="border border-[#202228] bg-[#0c0d10] p-4 flex items-center justify-between">
-            <div>
-              <span className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest">
-                Target Identifier
-              </span>
-              <div className="font-mono text-lg font-bold text-white">
-                {username.username.startsWith('@') ? username.username : `@${username.username}`}
+          {/* SUCCESS SCREEN */}
+          {paymentSuccess ? (
+            <div className="space-y-5 text-center py-4">
+              <div className="w-14 h-14 bg-[#142617] border border-[#2e7d32] text-[#4ade80] rounded-full mx-auto flex items-center justify-center text-2xl font-bold">
+                ✓
               </div>
-            </div>
-            <div className="text-right">
-              <span className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest">
-                Due Amount
-              </span>
-              <div className="flex items-baseline justify-end gap-1.5">
-                {appliedDiscount && (
-                  <span className="font-mono text-xs text-neutral-500 line-through">
-                    ${basePriceNum.toFixed(2)}
-                  </span>
-                )}
-                <div className="font-mono text-xl font-extrabold text-[#d4af37]">
-                  {isFreeCheckout ? 'FREE' : `$${finalPriceNum.toFixed(2)}`}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <form onSubmit={handleCheckout} className="space-y-4">
-            {/* Delivery Email Input */}
-            <div>
-              <label className="block text-xs font-mono uppercase tracking-wider text-neutral-300 mb-1.5">
-                Delivery Email Address *
-              </label>
-              <input
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="customer@domain.com"
-                className="w-full bg-[#0a0b0e] border border-[#2c2f3a] focus:border-[#d4af37] px-3.5 py-2.5 text-sm font-mono text-white outline-none transition-colors"
-              />
-              <p className="mt-1 text-[11px] text-neutral-400">
-                Your login credentials will be dispatched automatically to this address once verified.
-              </p>
-            </div>
-
-            {/* Optional Discord Username Input */}
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="block text-xs font-mono uppercase tracking-wider text-neutral-300">
-                  Discord Username
-                </label>
-                <span className="text-[10px] font-mono uppercase tracking-wider text-neutral-500">
-                  Optional
-                </span>
-              </div>
-              <input
-                type="text"
-                value={discordUsername}
-                onChange={(e) => setDiscordUsername(e.target.value)}
-                placeholder="e.g. zentirog or username#0000"
-                className="w-full bg-[#0a0b0e] border border-[#2c2f3a] focus:border-[#d4af37] px-3.5 py-2.5 text-sm font-mono text-white outline-none transition-colors"
-              />
-              <p className="mt-1 text-[11px] text-neutral-400">
-                Provide your Discord handle for buyer role / priority support updates.
-              </p>
-            </div>
-
-            {/* Discount Code Input */}
-            <div className="border-t border-[#1d1f26] pt-3">
-              <label className="block text-xs font-mono uppercase tracking-wider text-neutral-300 mb-1.5">
-                Promo / Discount Code
-              </label>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={discountCodeInput}
-                  onChange={(e) => setDiscountCodeInput(e.target.value)}
-                  placeholder="e.g. VIP100"
-                  disabled={Boolean(appliedDiscount)}
-                  className="flex-1 bg-[#0a0b0e] border border-[#2c2f3a] focus:border-[#d4af37] px-3 py-2 text-xs font-mono uppercase text-white outline-none transition-colors disabled:opacity-50"
-                />
-                {appliedDiscount ? (
-                  <button
-                    type="button"
-                    onClick={handleRemoveDiscount}
-                    className="px-3 py-2 bg-[#20222a] hover:bg-[#282a34] text-xs font-mono text-neutral-300 border border-[#343844] transition-colors"
-                  >
-                    Remove
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={handleApplyDiscount}
-                    disabled={validatingCode || !discountCodeInput.trim()}
-                    className="px-4 py-2 bg-[#181a22] hover:bg-[#222530] text-xs font-mono font-bold uppercase text-[#d4af37] border border-[#363a48] transition-colors disabled:opacity-50"
-                  >
-                    {validatingCode ? 'Checking...' : 'Apply'}
-                  </button>
-                )}
-              </div>
-              {discountMessage && (
-                <p
-                  className={`mt-1.5 text-xs font-mono ${
-                    discountMessage.isError ? 'text-rose-400' : 'text-emerald-400'
-                  }`}
-                >
-                  {discountMessage.text}
+              <div>
+                <h3 className="text-xl font-bold text-white font-mono">PAYMENT CONFIRMED</h3>
+                <p className="text-xs text-neutral-400 mt-1">
+                  Identifier <strong className="text-[#d4af37]">{username.username}</strong> is now yours!
                 </p>
-              )}
-            </div>
-
-            {/* Payment Method Switch / Credit Card Option */}
-            <div className="border border-[#23252d] bg-[#0c0d10] p-3 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest">
-                  Payment Method
-                </span>
-                <span className="text-[10px] font-mono text-[#d4af37] uppercase">
-                  Crypto / Card
-                </span>
               </div>
 
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowCardNotice(false)}
-                  className={`flex-1 py-2 text-xs font-mono uppercase font-bold tracking-wider border transition-colors ${
-                    !showCardNotice
-                      ? 'border-[#d4af37] bg-[#d4af37]/15 text-[#d4af37]'
-                      : 'border-[#262832] bg-[#121318] text-neutral-400 hover:text-white'
-                  }`}
-                >
-                  ⚡ Crypto (Instant)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowCardNotice(true)}
-                  className={`flex-1 py-2 text-xs font-mono uppercase font-bold tracking-wider border transition-colors ${
-                    showCardNotice
-                      ? 'border-[#d4af37] bg-[#d4af37]/15 text-[#d4af37]'
-                      : 'border-[#262832] bg-[#121318] text-neutral-400 hover:text-white'
-                  }`}
-                >
-                  💳 Debit / Credit Card
-                </button>
-              </div>
-
-              {showCardNotice && (
-                <div className="mt-2.5 p-3.5 border border-[#3e341c] bg-[#18140c] space-y-2.5">
-                  <div className="text-[11px] font-mono font-bold uppercase text-[#d4af37] flex items-center gap-1.5">
-                    <span>Card Checkout via Discord Desk</span>
+              {deliveredCredentials ? (
+                <div className="text-left border border-[#d4af37]/50 bg-[#0c0d10] p-4 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-mono uppercase text-[#d4af37] tracking-wider">
+                      Account Credentials
+                    </span>
+                    <button
+                      onClick={() => copyToClipboard(deliveredCredentials, 'creds')}
+                      className="text-xs font-mono px-2.5 py-1 bg-[#202228] hover:bg-[#2c303c] text-white border border-[#3b3f4e] transition-colors"
+                    >
+                      {copiedCreds ? 'Copied ✓' : 'Copy Credentials'}
+                    </button>
                   </div>
-                  <p className="text-xs text-neutral-300 leading-relaxed font-sans">
-                    Credit and Debit card payments are processed securely with buyer invoice protection via our Discord desk.
+                  <pre className="font-mono text-sm bg-[#050608] border border-[#23252c] p-3 text-white overflow-x-auto whitespace-pre-wrap select-all">
+                    {deliveredCredentials}
+                  </pre>
+                  <p className="text-[11px] text-neutral-400 pt-1">
+                    A copy of these credentials and account transfer instructions has also been sent to your email.
                   </p>
-                  <p className="text-[11px] text-neutral-400 font-sans">
-                    Please open a ticket on Discord or message owner <strong className="text-white font-mono">@nonconfident</strong> mentioning you want to purchase <strong className="text-white font-mono">{username.username}</strong> with a card.
+                </div>
+              ) : (
+                <div className="border border-[#282a34] bg-[#0c0d10] p-4 text-left space-y-2">
+                  <span className="text-[10px] font-mono uppercase text-[#d4af37] tracking-wider">
+                    Cold Storage Ticket
+                  </span>
+                  <p className="text-xs text-neutral-300">
+                    Your payment was verified. Open a ticket on Discord with order ID <code className="text-[#d4af37]">{ltcOrder?.orderId}</code> for immediate release.
                   </p>
-                  <a
-                    href={discordLink}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center justify-center w-full py-2 bg-[#d4af37] hover:bg-[#e2bd45] text-[#090a0d] font-mono font-bold text-xs uppercase tracking-wider transition-colors"
-                  >
-                    Open Discord & Pay With Card
-                  </a>
                 </div>
               )}
+
+              <button
+                onClick={onClose}
+                className="w-full py-3 bg-[#d4af37] hover:bg-[#b8972e] text-[#090a0d] font-mono font-bold text-xs uppercase tracking-widest transition-colors"
+              >
+                Done
+              </button>
             </div>
-
-            {/* Security Policy Notice */}
-            {!showCardNotice && (
-              <div className="border border-[#23252d] bg-[#0c0d10] p-3.5 text-[11px] text-neutral-400 space-y-1 leading-relaxed">
-                <div className="font-mono text-neutral-300 uppercase tracking-wider text-[10px] font-bold">
-                  Automated Delivery Terms
+          ) : ltcOrder ? (
+            /* PAYMENT AWAITING SCREEN */
+            <div className="space-y-4">
+              <div className="border border-[#202228] bg-[#0c0d10] p-3.5 flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest">
+                    Target
+                  </span>
+                  <div className="font-mono text-base font-bold text-white">
+                    {username.username.startsWith('@') ? username.username : `@${username.username}`}
+                  </div>
                 </div>
-                <p>
-                  Credentials format <code className="text-[#d4af37]">mail:pass:token</code>. In case a handle is stored in cold storage, you will receive priority Discord desk fulfillment upon checkout.
-                </p>
+                <div className="text-right">
+                  <span className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest">
+                    Amount Due
+                  </span>
+                  <div className="font-mono text-base font-extrabold text-[#d4af37]">
+                    ${ltcOrder.usdAmount.toFixed(2)} USD
+                  </div>
+                </div>
               </div>
-            )}
 
-            {error && (
-              <div className="p-3 border border-red-500/30 bg-red-950/20 text-red-300 text-xs font-mono">
-                {error}
+              {/* QR and Payment Data */}
+              <div className="border border-[#2a2d38] bg-[#0a0b0e] p-4 text-center space-y-3">
+                <div className="inline-block p-2.5 bg-white rounded-md mx-auto shadow-lg">
+                  <QRCodeSVG value={ltcOrder.qrValue} size={150} level="M" />
+                </div>
+
+                <div className="space-y-2 text-left pt-2">
+                  {/* LTC Amount */}
+                  <div>
+                    <label className="text-[10px] font-mono uppercase tracking-wider text-neutral-400 block mb-1">
+                      Send Exact Amount (LTC):
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 bg-[#12141a] border border-[#2b2f3c] px-3 py-2 font-mono text-sm text-[#d4af37] font-bold select-all">
+                        {ltcOrder.ltcAmount} LTC
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => copyToClipboard(String(ltcOrder.ltcAmount), 'amt')}
+                        className="px-3 py-2 bg-[#1f222c] hover:bg-[#2b2f3e] border border-[#3b3f4f] text-xs font-mono text-white transition-colors"
+                      >
+                        {copiedAmount ? 'Copied ✓' : 'Copy'}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* LTC Address */}
+                  <div>
+                    <label className="text-[10px] font-mono uppercase tracking-wider text-neutral-400 block mb-1">
+                      Litecoin Deposit Address:
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 bg-[#12141a] border border-[#2b2f3c] px-3 py-2 font-mono text-xs text-white break-all select-all">
+                        {ltcOrder.ltcAddress}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => copyToClipboard(ltcOrder.ltcAddress, 'addr')}
+                        className="px-3 py-2 bg-[#1f222c] hover:bg-[#2b2f3e] border border-[#3b3f4f] text-xs font-mono text-white transition-colors"
+                      >
+                        {copiedAddress ? 'Copied ✓' : 'Copy'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Status Indicator */}
+                <div className="pt-2 border-t border-[#1c1e26] flex items-center justify-center gap-2 text-xs font-mono">
+                  <span className={`w-2.5 h-2.5 rounded-full ${unconfirmedDetected ? 'bg-amber-400 animate-ping' : 'bg-[#d4af37] animate-pulse'}`}></span>
+                  <span className={unconfirmedDetected ? 'text-amber-400 font-semibold' : 'text-neutral-400'}>
+                    {pollStatusText}
+                  </span>
+                </div>
               </div>
-            )}
 
-            {/* Submit / Cancel Buttons */}
-            {!showCardNotice && (
-              <div className="pt-2 flex items-center justify-end gap-2.5">
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="px-4 py-2.5 text-xs font-mono uppercase tracking-wider text-neutral-400 hover:text-white border border-[#22242b] bg-[#121318] transition-colors"
-                >
-                  Cancel
-                </button>
+              <div className="text-[11px] font-mono text-neutral-500 text-center">
+                Order ID: <code className="text-neutral-400">{ltcOrder.orderId}</code> • Valid for 45 mins
+              </div>
+            </div>
+          ) : (
+            /* ORDER FORM SCREEN */
+            <>
+              {/* Target Identifier Details */}
+              <div className="border border-[#202228] bg-[#0c0d10] p-4 flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest">
+                    Target Identifier
+                  </span>
+                  <div className="font-mono text-lg font-bold text-white">
+                    {username.username.startsWith('@') ? username.username : `@${username.username}`}
+                  </div>
+                </div>
+                <div className="text-right">
+                  <span className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest">
+                    Due Amount
+                  </span>
+                  <div className="flex items-baseline justify-end gap-1.5">
+                    {appliedDiscount && (
+                      <span className="font-mono text-xs text-neutral-500 line-through">
+                        ${basePriceNum.toFixed(2)}
+                      </span>
+                    )}
+                    <div className="font-mono text-xl font-extrabold text-[#d4af37]">
+                      {isFreeCheckout ? 'FREE' : `$${finalPriceNum.toFixed(2)}`}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <form onSubmit={handleCheckout} className="space-y-4">
+                {/* Delivery Email Input */}
+                <div>
+                  <label className="block text-xs font-mono uppercase tracking-wider text-neutral-300 mb-1.5">
+                    Delivery Email Address *
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="customer@domain.com"
+                    className="w-full bg-[#0a0b0e] border border-[#2c2f3a] focus:border-[#d4af37] px-3.5 py-2.5 text-sm font-mono text-white outline-none transition-colors"
+                  />
+                  <p className="mt-1 text-[11px] text-neutral-400">
+                    Login credentials will be dispatched automatically to this address once transaction is verified.
+                  </p>
+                </div>
+
+                {/* Optional Discord Username Input */}
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-xs font-mono uppercase tracking-wider text-neutral-300">
+                      Discord Username
+                    </label>
+                    <span className="text-[10px] font-mono uppercase tracking-wider text-neutral-500">
+                      Optional
+                    </span>
+                  </div>
+                  <input
+                    type="text"
+                    value={discordUsername}
+                    onChange={(e) => setDiscordUsername(e.target.value)}
+                    placeholder="e.g. zentirog or username#0000"
+                    className="w-full bg-[#0a0b0e] border border-[#2c2f3a] focus:border-[#d4af37] px-3.5 py-2.5 text-sm font-mono text-white outline-none transition-colors"
+                  />
+                </div>
+
+                {/* Discount Code Input */}
+                <div className="border-t border-[#1d1f26] pt-3">
+                  <label className="block text-xs font-mono uppercase tracking-wider text-neutral-300 mb-1.5">
+                    Promo / Discount Code
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={discountCodeInput}
+                      onChange={(e) => setDiscountCodeInput(e.target.value)}
+                      placeholder="e.g. VIP100"
+                      disabled={Boolean(appliedDiscount)}
+                      className="flex-1 bg-[#0a0b0e] border border-[#2c2f3a] focus:border-[#d4af37] px-3 py-2 text-xs font-mono uppercase text-white outline-none transition-colors disabled:opacity-50"
+                    />
+                    {appliedDiscount ? (
+                      <button
+                        type="button"
+                        onClick={handleRemoveDiscount}
+                        className="px-3 py-2 bg-[#20222a] hover:bg-[#282a34] text-xs font-mono text-neutral-300 border border-[#343844] transition-colors"
+                      >
+                        Remove
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        disabled={validatingCode || !discountCodeInput.trim()}
+                        onClick={handleApplyDiscount}
+                        className="px-4 py-2 bg-[#1b1d24] hover:bg-[#252832] disabled:opacity-50 text-xs font-mono text-[#d4af37] border border-[#2c303c] transition-colors"
+                      >
+                        {validatingCode ? 'Checking...' : 'Apply'}
+                      </button>
+                    )}
+                  </div>
+
+                  {discountMessage && (
+                    <p
+                      className={`mt-1.5 text-xs font-mono ${
+                        discountMessage.isError ? 'text-red-400' : 'text-emerald-400'
+                      }`}
+                    >
+                      {discountMessage.text}
+                    </p>
+                  )}
+                </div>
+
+                {error && (
+                  <div className="border border-red-900/60 bg-red-950/30 p-3 text-red-300 text-xs font-mono">
+                    {error}
+                  </div>
+                )}
+
                 <button
                   type="submit"
                   disabled={loading}
-                  className="px-5 py-2.5 text-xs font-mono uppercase tracking-wider font-bold bg-[#d4af37] hover:bg-[#e2bd45] text-[#090a0d] transition-all disabled:opacity-50 shadow-[0_0_15px_rgba(212,175,55,0.2)]"
+                  className="w-full py-3.5 bg-[#d4af37] hover:bg-[#b8972e] disabled:opacity-50 text-[#090a0d] font-mono font-bold text-xs uppercase tracking-widest transition-colors flex items-center justify-center gap-2"
                 >
-                  {loading
-                    ? 'Processing...'
-                    : isFreeCheckout
-                    ? 'Claim Free Identifier'
-                    : 'Pay with Cryptomus'}
+                  {loading ? (
+                    <span className="flex items-center gap-2">
+                      <span className="inline-block w-3.5 h-3.5 border-2 border-[#090a0d] border-t-transparent rounded-full animate-spin"></span>
+                      GENERATING SECURE LTC ORDER...
+                    </span>
+                  ) : isFreeCheckout ? (
+                    'CLAIM IDENTIFIER (100% FREE)'
+                  ) : (
+                    'PAY WITH LITECOIN (0% FEES)'
+                  )}
                 </button>
+              </form>
+
+              {/* Card Notice Option */}
+              <div className="border-t border-[#1d1f26] pt-3 text-center">
+                <button
+                  type="button"
+                  onClick={() => setShowCardNotice(!showCardNotice)}
+                  className="text-xs font-mono text-neutral-400 hover:text-white underline transition-colors"
+                >
+                  Prefer paying with Debit / Credit Card?
+                </button>
+
+                {showCardNotice && (
+                  <div className="mt-3 p-3 bg-[#0d0e12] border border-[#262832] text-left text-xs space-y-2">
+                    <p className="text-neutral-300">
+                      Card payments are handled securely via ticket escrow on our official Discord server.
+                    </p>
+                    <a
+                      href={discordLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-block text-xs font-mono font-semibold text-[#d4af37] hover:underline"
+                    >
+                      Join Discord & Open Ticket &rarr;
+                    </a>
+                  </div>
+                )}
               </div>
-            )}
-          </form>
+            </>
+          )}
         </div>
       </div>
     </div>
