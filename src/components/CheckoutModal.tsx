@@ -214,6 +214,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         body: JSON.stringify({
           usernameId: username.id,
           username: username.username,
+          clientPrice: basePriceNum,
           customerEmail: email.trim(),
           customerDiscord: discordUsername.trim(),
           discountCode: appliedDiscount?.code || '',

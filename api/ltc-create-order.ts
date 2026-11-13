@@ -73,7 +73,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const { usernameId, username, customerEmail, customerDiscord, discountCode } = req.body;
+    const { usernameId, username, clientPrice, customerEmail, customerDiscord, discountCode } = req.body;
 
     if (!username || !customerEmail) {
       return res.status(400).json({ error: 'Missing required checkout parameters.' });
@@ -145,6 +145,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (isSold) {
       return res.status(400).json({ error: 'This identifier has already been claimed or sold.' });
+    }
+
+    // If Firestore free quota is exhausted (429) during read, fallback safely to valid clientPrice
+    if (realPrice <= 0 && typeof clientPrice === 'number' && clientPrice > 0) {
+      realPrice = clientPrice;
     }
 
     if (realPrice <= 0) {
