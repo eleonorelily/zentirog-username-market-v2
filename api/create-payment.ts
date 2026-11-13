@@ -3,7 +3,7 @@ import crypto from 'node:crypto';
 import { Resend } from 'resend';
 import { MongoClient, ObjectId } from 'mongodb';
 
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://harryuchiha:l17Fgoa6Fstkga7s@cluster0.bnfc8xm.mongodb.net/zentirog?retryWrites=true&w=majority';
+const MONGODB_URI = process.env.MONGODB_URI || '';
 let cachedMongoClient: MongoClient | null = null;
 
 async function getMongoDatabase() {
