@@ -1,0 +1,21 @@
+# Zentirog Discord Username Market
+
+> Zentirog is the premier marketplace for rare, 3-letter, 4-letter, and clean dictionary Discord usernames and pre-claimed accounts with verified escrow protection.
+
+## Overview
+Zentirog connects digital asset buyers with exclusive, rare Discord usernames. All usernames are delivered on verified pre-claimed Discord accounts with full email, password, and 2FA transfer ownership.
+
+## Marketplace Inventory & Categories
+- [3-Letter (3L) Discord Usernames](https://www.zentirog.com/): Ultra-rare 3-character vanity identifiers.
+- [4-Letter (4L) Discord Usernames](https://www.zentirog.com/): Clean, pronounceable 4-character handles.
+- [Clean Dictionary Usernames](https://www.zentirog.com/): Real English dictionary words, prestige terms, and brandable handles.
+- [Semi-OG & Gaming Usernames](https://www.zentirog.com/): Aesthetic, cultural, and gaming moniker identifiers.
+
+## Buyer Protection & Escrow Protocol
+- Ownership Guarantee: Every account credentials set is verified in vault cold storage before release.
+- Transfer Protocol: Buyers take immediate ownership by updating email, password, and enabling two-factor authentication (2FA).
+- Verified Support: Direct transfer support and verification via official Discord desk.
+
+## Official Links
+- Website: https://www.zentirog.com/
+- Discord Community: https://discord.gg/5WC6sH2rrj

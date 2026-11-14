@@ -120,7 +120,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const orderId = `ORD-${Date.now()}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
-    const host = req.headers['x-forwarded-host'] || req.headers.host || 'users.zentirog.lol';
+    const host = req.headers['x-forwarded-host'] || req.headers.host || 'www.zentirog.com';
     const protocol = req.headers['x-forwarded-proto'] || 'https';
     const baseUrl = `${protocol}://${host}`;
 
@@ -400,7 +400,7 @@ async function sendDiscordSaleNotification({
         { name: '📦 Fulfillment Status', value: isDelivered ? '✅ **Delivered Instantly** (Email & Screen)' : '⏳ **Manual Cold Storage Ticket Required**', inline: true },
         { name: '🧾 Order ID', value: `\`${orderId}\``, inline: false },
       ],
-      footer: { text: 'Zentirog Automated Sales System • users.zentirog.lol' },
+      footer: { text: 'Zentirog Automated Sales System • zentirog.com' },
       timestamp: new Date().toISOString(),
     };
 
