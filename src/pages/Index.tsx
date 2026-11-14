@@ -1,4 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
 import { useQuery } from '@tanstack/react-query';
 import { fetchPublishedUsernames } from '@/lib/usernameStore';
 import { useDiscordLink } from '@/hooks/useDiscordLink';
@@ -46,6 +48,9 @@ const sortUsernames = (usernames: Username[], sortOption: SortType): Username[] 
 };
 
 const Index = () => {
+  const { platform = 'discord', handle } = useParams<{ platform?: string; handle?: string }>();
+  const navigate = useNavigate();
+
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [sortOption, setSortOption] = useState<SortType>('price-desc');
@@ -63,6 +68,45 @@ const Index = () => {
     queryFn: fetchPublishedUsernames,
     staleTime: 60000, // Cache for 1 full minute to prevent unnecessary re-fetching
   });
+
+  // Normalize handle from URL param (supports @user or user)
+  const cleanUrlHandle = useMemo(() => {
+    if (!handle) return '';
+    return decodeURIComponent(handle).replace(/^@+/, '').trim().toLowerCase();
+  }, [handle]);
+
+  // Synchronize URL handle with selectedItem modal
+  useEffect(() => {
+    if (!cleanUrlHandle) return;
+    if (usernames.length === 0) return;
+
+    const matched = usernames.find(
+      u => u.username.replace(/^@+/, '').toLowerCase() === cleanUrlHandle
+    );
+
+    if (matched) {
+      setSelectedItem(matched);
+      document.title = `@${matched.username.replace(/^@+/, '')} — Discord Username | Zentirog`;
+    } else if (!isLoading) {
+      toast.error(`Identifier @${cleanUrlHandle} not found in current vault.`);
+      navigate('/', { replace: true });
+    }
+  }, [cleanUrlHandle, usernames, isLoading, navigate]);
+
+  const handleSelectItem = (item: Username) => {
+    setSelectedItem(item);
+    const raw = item.username.replace(/^@+/, '');
+    const targetPlatform = platform || 'discord';
+    navigate(`/${targetPlatform}/@${raw}`);
+  };
+
+  const handleCloseDetailModal = () => {
+    setSelectedItem(null);
+    document.title = 'Discord Usernames Market — Buy Rare & 3L Handles | Zentirog';
+    if (handle) {
+      navigate('/', { replace: true });
+    }
+  };
 
   const availableUsernames = useMemo(() => usernames.filter(u => !u.isSold), [usernames]);
   const soldUsernames = useMemo(() => usernames.filter(u => u.isSold), [usernames]);
@@ -242,7 +286,7 @@ const Index = () => {
                       key={`${item.username}-${item.id || item.price}`}
                       item={item}
                       viewMode="grid"
-                      onSelect={setSelectedItem}
+                      onSelect={handleSelectItem}
                       onBuy={setCheckoutItem}
                       discordLink={discordLink}
                     />
@@ -255,7 +299,7 @@ const Index = () => {
                       key={`${item.username}-${item.id || item.price}`}
                       item={item}
                       viewMode="list"
-                      onSelect={setSelectedItem}
+                      onSelect={handleSelectItem}
                       onBuy={setCheckoutItem}
                       discordLink={discordLink}
                     />
@@ -400,9 +444,10 @@ const Index = () => {
       {/* Modal Sheet for Handle Details */}
       <HandleDetailModal
         username={selectedItem}
-        onClose={() => setSelectedItem(null)}
+        onClose={handleCloseDetailModal}
         onOpenCheckout={(item) => setCheckoutItem(item)}
         discordLink={discordLink}
+        platform={platform}
       />
 
       {/* Instant Crypto Checkout Modal */}

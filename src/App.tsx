@@ -39,6 +39,10 @@ const App = () => (
               </Suspense>
             }
           />
+          {/* Direct deep-link routes for usernames across platforms */}
+          <Route path="/:platform/:handle" element={<Index />} />
+          <Route path="/:platform" element={<Index />} />
+          <Route path="/@:handle" element={<Index />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

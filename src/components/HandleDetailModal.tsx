@@ -6,6 +6,7 @@ interface HandleDetailModalProps {
   onClose: () => void;
   onOpenCheckout?: (username: Username) => void;
   discordLink: string;
+  platform?: string;
 }
 
 export const HandleDetailModal: React.FC<HandleDetailModalProps> = ({
@@ -13,16 +14,30 @@ export const HandleDetailModal: React.FC<HandleDetailModalProps> = ({
   onClose,
   onOpenCheckout,
   discordLink,
+  platform = 'discord',
 }) => {
   const [copied, setCopied] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
 
   if (!username) return null;
+
+  const cleanHandle = username.username.replace(/^@+/, '');
 
   const handleCopy = (e: React.MouseEvent) => {
     e.stopPropagation();
     navigator.clipboard.writeText(username.username);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleCopyLink = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const origin = typeof window !== 'undefined' && window.location.origin ? window.location.origin : 'https://www.zentirog.com';
+    const activePlatform = platform || 'discord';
+    const shareUrl = `${origin}/${activePlatform}/@${cleanHandle}`;
+    navigator.clipboard.writeText(shareUrl);
+    setCopiedLink(true);
+    setTimeout(() => setCopiedLink(false), 2000);
   };
 
   const len = username.username.length;
@@ -76,12 +91,22 @@ export const HandleDetailModal: React.FC<HandleDetailModalProps> = ({
                 {username.username.startsWith('@') ? username.username : `@${username.username}`}
               </h2>
             </div>
-            <button
-              onClick={handleCopy}
-              className="px-3 py-1.5 border border-[#2c2f38] bg-[#16171d] hover:bg-[#202229] text-xs font-mono text-neutral-300 transition-colors shrink-0"
-            >
-              {copied ? 'COPIED' : 'COPY'}
-            </button>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={handleCopy}
+                title="Copy username"
+                className="px-3 py-1.5 border border-[#2c2f38] bg-[#16171d] hover:bg-[#202229] text-xs font-mono text-neutral-300 transition-colors"
+              >
+                {copied ? 'COPIED' : 'COPY'}
+              </button>
+              <button
+                onClick={handleCopyLink}
+                title="Copy direct link for posts"
+                className="px-3 py-1.5 border border-[#3d3319] bg-[#1a170f] hover:bg-[#242013] text-xs font-mono text-[#d4af37] transition-colors"
+              >
+                {copiedLink ? 'LINK COPIED' : 'SHARE LINK'}
+              </button>
+            </div>
           </div>
 
           {/* Discord Simulation (Real Product Demo) */}
