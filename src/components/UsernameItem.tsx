@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import type { Username } from '@/types/username';
+import { isFaceUsername, isPunctuatedUsername } from '@/lib/usernameParser';
 
 interface UsernameItemProps {
   item: Username;
@@ -34,6 +35,12 @@ export const UsernameItem: React.FC<UsernameItemProps> = ({
     : item.price;
   const originalPrice = discountMatch ? `$${discountMatch[3]}` : null;
   const discountPercent = discountMatch ? `${discountMatch[2]}%` : null;
+
+  const displayCategory = isFaceUsername(item.username, item.category)
+    ? 'Face user'
+    : isPunctuatedUsername(item.username, item.category)
+    ? 'Punctuated user'
+    : item.category || `${item.username.length} CHAR`;
 
   if (viewMode === 'list') {
     return (
@@ -136,7 +143,7 @@ export const UsernameItem: React.FC<UsernameItemProps> = ({
       {/* Top row */}
       <div className="flex items-center justify-between gap-2 mb-3">
         <span className="text-[10px] font-mono tracking-widest uppercase text-neutral-400">
-          {item.category || `${item.username.length} CHAR`}
+          {displayCategory}
         </span>
 
         <div className="flex items-center gap-1.5">

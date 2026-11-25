@@ -3,8 +3,25 @@ import type { Username, UsernamePriority } from '@/types/username';
 export const LEGACY_USERNAME_SOURCE =
   'https://raw.githubusercontent.com/zentir0g/ignore/refs/heads/main/users.txt';
 
+export const isFaceUsername = (username: string, category?: string): boolean => {
+  if (category && /face/i.test(category)) return true;
+  const handle = username.trim().replace(/^@+/, '');
+  if (handle.length !== 4) return false;
+  // 4c face usernames like hf_3 or h_3g: length 4 and 2nd (index 1) or 3rd (index 2) char is '_'
+  return handle[1] === '_' || handle[2] === '_';
+};
+
+export const isPunctuatedUsername = (username: string, category?: string): boolean => {
+  if (category && /punctuate/i.test(category)) return true;
+  const handle = username.trim().replace(/^@+/, '');
+  // punctuated: . in the end or . in the start
+  return handle.startsWith('.') || handle.endsWith('.');
+};
+
 export const getLengthCategory = (username: string): string => {
   const handle = username.startsWith('@') ? username.slice(1) : username;
+  if (isFaceUsername(handle)) return 'Face user';
+  if (isPunctuatedUsername(handle)) return 'Punctuated user';
   if (/^[A-Za-z]{3}$/.test(handle)) return '3 letter';
   if (/^[A-Za-z]{4}$/.test(handle)) return '4 letter';
   if (handle.length === 3) return '3 char';

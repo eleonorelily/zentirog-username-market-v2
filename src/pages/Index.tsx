@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useQuery } from '@tanstack/react-query';
 import { fetchPublishedUsernames } from '@/lib/usernameStore';
+import { isFaceUsername, isPunctuatedUsername } from '@/lib/usernameParser';
 import { useDiscordLink } from '@/hooks/useDiscordLink';
 import type { Username } from '@/types/username';
 import { Navbar } from '@/components/Navbar';
@@ -117,9 +118,11 @@ const Index = () => {
     if (availableUsernames.some(u => u.isNew)) list.push('New Drops');
     if (availableUsernames.some(u => u.isHot)) list.push('High Demand');
     if (availableUsernames.some(u => u.category === '3 letter' || u.username.length === 3)) list.push('3 Letter');
-    if (availableUsernames.some(u => u.category === '4 letter' || u.username.length === 4)) list.push('4 Letter');
+    if (availableUsernames.some(u => (u.category === '4 letter' || u.username.length === 4) && !isFaceUsername(u.username, u.category))) list.push('4 Letter');
     if (availableUsernames.some(u => u.category === '3 char')) list.push('3 Char');
-    if (availableUsernames.some(u => u.category === 'Semi usernames')) list.push('Semi Handles');
+    list.push('Face User');
+    list.push('Punctuated User');
+    if (availableUsernames.some(u => u.category === 'Semi usernames' && !isFaceUsername(u.username, u.category) && !isPunctuatedUsername(u.username, u.category))) list.push('Semi Handles');
     if (soldUsernames.length > 0) list.push('Sold Archives');
     return list;
   }, [availableUsernames, soldUsernames]);
@@ -131,9 +134,11 @@ const Index = () => {
       'New Drops': availableUsernames.filter(u => u.isNew).length,
       'High Demand': availableUsernames.filter(u => u.isHot).length,
       '3 Letter': availableUsernames.filter(u => u.category === '3 letter' || u.username.length === 3).length,
-      '4 Letter': availableUsernames.filter(u => u.category === '4 letter' || u.username.length === 4).length,
+      '4 Letter': availableUsernames.filter(u => (u.category === '4 letter' || u.username.length === 4) && !isFaceUsername(u.username, u.category)).length,
       '3 Char': availableUsernames.filter(u => u.category === '3 char').length,
-      'Semi Handles': availableUsernames.filter(u => u.category === 'Semi usernames').length,
+      'Face User': availableUsernames.filter(u => isFaceUsername(u.username, u.category)).length,
+      'Punctuated User': availableUsernames.filter(u => isPunctuatedUsername(u.username, u.category)).length,
+      'Semi Handles': availableUsernames.filter(u => u.category === 'Semi usernames' && !isFaceUsername(u.username, u.category) && !isPunctuatedUsername(u.username, u.category)).length,
       'Sold Archives': soldUsernames.length,
     };
     return counts;
@@ -156,11 +161,15 @@ const Index = () => {
     } else if (selectedCategory === '3 Letter') {
       list = list.filter(u => (u.category === '3 letter' || u.username.length === 3) && !u.isSold);
     } else if (selectedCategory === '4 Letter') {
-      list = list.filter(u => (u.category === '4 letter' || u.username.length === 4) && !u.isSold);
+      list = list.filter(u => (u.category === '4 letter' || u.username.length === 4) && !isFaceUsername(u.username, u.category) && !u.isSold);
     } else if (selectedCategory === '3 Char') {
       list = list.filter(u => u.category === '3 char' && !u.isSold);
+    } else if (selectedCategory === 'Face User') {
+      list = list.filter(u => isFaceUsername(u.username, u.category) && !u.isSold);
+    } else if (selectedCategory === 'Punctuated User') {
+      list = list.filter(u => isPunctuatedUsername(u.username, u.category) && !u.isSold);
     } else if (selectedCategory === 'Semi Handles') {
-      list = list.filter(u => u.category === 'Semi usernames' && !u.isSold);
+      list = list.filter(u => u.category === 'Semi usernames' && !isFaceUsername(u.username, u.category) && !isPunctuatedUsername(u.username, u.category) && !u.isSold);
     } else if (selectedCategory === 'Sold Archives') {
       list = list.filter(u => u.isSold);
     }
@@ -178,7 +187,9 @@ const Index = () => {
           u =>
             u.username.toLowerCase().includes(q) ||
             u.description.toLowerCase().includes(q) ||
-            u.category.toLowerCase().includes(q)
+            u.category.toLowerCase().includes(q) ||
+            (q === 'face' && isFaceUsername(u.username, u.category)) ||
+            (q === 'punctuated' && isPunctuatedUsername(u.username, u.category))
         );
       }
     }

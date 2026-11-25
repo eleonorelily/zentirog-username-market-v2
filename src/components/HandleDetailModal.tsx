@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import type { Username } from '@/types/username';
+import { isFaceUsername, isPunctuatedUsername } from '@/lib/usernameParser';
 
 interface HandleDetailModalProps {
   username: Username | null;
@@ -22,6 +23,12 @@ export const HandleDetailModal: React.FC<HandleDetailModalProps> = ({
   if (!username) return null;
 
   const cleanHandle = username.username.replace(/^@+/, '');
+
+  const displayCategory = isFaceUsername(username.username, username.category)
+    ? 'Face User'
+    : isPunctuatedUsername(username.username, username.category)
+    ? 'Punctuated User'
+    : username.category || 'General Handle';
 
   const handleCopy = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -85,7 +92,7 @@ export const HandleDetailModal: React.FC<HandleDetailModalProps> = ({
           <div className="flex items-start justify-between gap-4">
             <div>
               <div className="text-[10px] font-mono tracking-widest uppercase text-[#d4af37] mb-1">
-                {username.category || 'General Handle'}
+                {displayCategory}
               </div>
               <h2 id="handle-detail-title" className="text-3xl sm:text-4xl font-mono font-bold tracking-tight text-white select-all">
                 {username.username.startsWith('@') ? username.username : `@${username.username}`}

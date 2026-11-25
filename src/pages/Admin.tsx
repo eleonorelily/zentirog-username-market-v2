@@ -42,7 +42,7 @@ const blankUsername: Username = {
   public: true,
 };
 
-const categories = ['3 letter', '4 letter', '3 char', 'Semi usernames', 'Sold'];
+const categories = ['3 letter', '4 letter', '3 char', 'Face user', 'Punctuated user', 'Semi usernames', 'Sold'];
 const priorities: UsernamePriority[] = ['none', 'high', 'mid', 'low'];
 
 type ImportPreview = {
