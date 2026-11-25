@@ -4,33 +4,33 @@
 
 @layer base {
   :root {
-    --background: 220 14% 4%;     /* #090a0d */
-    --foreground: 220 10% 93%;    /* #eaebee */
+    --background: 225 15% 3.5%;   /* #07080a deep neutral black */
+    --foreground: 220 12% 96%;    /* #f4f4f6 bone white */
 
-    --card: 220 12% 7%;           /* #101115 */
-    --card-foreground: 220 10% 93%;
+    --card: 222 14% 6.5%;         /* #0d0f14 clean graphite surface */
+    --card-foreground: 220 12% 96%;
 
-    --popover: 220 12% 7%;
-    --popover-foreground: 220 10% 93%;
+    --popover: 222 14% 6.5%;
+    --popover-foreground: 220 12% 96%;
 
-    --primary: 42 55% 58%;        /* #d4af37 muted antique gold */
-    --primary-foreground: 220 14% 4%;
+    --primary: 42 55% 58%;        /* #d4af37 restrained gold accent */
+    --primary-foreground: 225 15% 3.5%;
 
-    --secondary: 220 10% 12%;     /* #1b1d22 */
-    --secondary-foreground: 220 10% 88%;
+    --secondary: 220 12% 11%;     /* #171920 */
+    --secondary-foreground: 220 10% 90%;
 
-    --muted: 220 10% 12%;
-    --muted-foreground: 220 8% 54%;
+    --muted: 220 12% 11%;
+    --muted-foreground: 220 8% 52%; /* #767b8a */
 
-    --accent: 220 10% 14%;
-    --accent-foreground: 220 10% 94%;
+    --accent: 220 12% 13%;
+    --accent-foreground: 220 10% 95%;
 
     --destructive: 0 65% 50%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 220 9% 15%;        /* #22242a crisp 1px hairline border */
-    --input: 220 9% 15%;
-    --ring: 42 55% 58%;
+    --border: 220 10% 13%;        /* #1c1f26 quiet 1px hairline divider */
+    --input: 220 10% 13%;
+    --ring: 220 12% 96%;
 
     --radius: 0.125rem;          /* Sharp 2px architectural precision */
   }
@@ -42,7 +42,7 @@
 
   html {
     color-scheme: dark;
-    background-color: #090a0d;
+    background-color: #07080a;
     font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -57,8 +57,8 @@
   }
 
   ::selection {
-    background-color: #d4af37;
-    color: #090a0d;
+    background-color: #262933;
+    color: #f4f4f6;
   }
 }
 
@@ -68,14 +68,14 @@
   height: 5px;
 }
 ::-webkit-scrollbar-track {
-  background: #090a0d;
+  background: #07080a;
 }
 ::-webkit-scrollbar-thumb {
-  background: #23262f;
+  background: #1e2129;
   border-radius: 1px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #343844;
+  background: #2b2f3a;
 }
 
 /* Skeleton shimmer */

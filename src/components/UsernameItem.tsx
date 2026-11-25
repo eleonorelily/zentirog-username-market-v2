@@ -15,7 +15,6 @@ export const UsernameItem: React.FC<UsernameItemProps> = ({
   viewMode,
   onSelect,
   onBuy,
-  discordLink,
 }) => {
   const [copied, setCopied] = useState(false);
 
@@ -29,66 +28,66 @@ export const UsernameItem: React.FC<UsernameItemProps> = ({
   const isSold = item.isSold || item.price === 'SOLD';
   const discountMatch = item.price.match(/\$(\d+(?:\.\d+)?)\s*\((\d+)%\s*off\s*\$(\d+(?:\.\d+)?)\)/);
   const displayPrice = isSold
-    ? 'SOLD'
+    ? 'Sold'
     : discountMatch
     ? `$${discountMatch[1]}`
     : item.price;
   const originalPrice = discountMatch ? `$${discountMatch[3]}` : null;
-  const discountPercent = discountMatch ? `${discountMatch[2]}%` : null;
+  const discountPercent = discountMatch ? `${discountMatch[2]}% off` : null;
 
   const displayCategory = isFaceUsername(item.username, item.category)
     ? 'Face user'
     : isPunctuatedUsername(item.username, item.category)
     ? 'Punctuated user'
-    : item.category || `${item.username.length} CHAR`;
+    : item.category || `${item.username.length} char`;
 
   if (viewMode === 'list') {
     return (
       <div
         onClick={() => onSelect(item)}
-        className="group relative flex items-center justify-between p-3.5 sm:p-4 bg-[#101115] hover:bg-[#14161c] border-b border-[#1c1e24] cursor-pointer transition-colors"
+        className="group relative flex items-center justify-between p-3.5 sm:p-4 bg-[#0d0f14] hover:bg-[#11131a] border-b border-[#1c1f26] cursor-pointer transition-colors duration-150"
       >
         <div className="flex items-center gap-3 sm:gap-6 min-w-0">
-          <span className="font-mono text-xs text-neutral-400 w-6 shrink-0">
+          <span className="font-mono text-xs text-[#6e7382] w-7 shrink-0 tabular-nums">
             {item.username.length}L
           </span>
 
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <span className={`font-mono text-base sm:text-lg font-bold tracking-tight truncate ${isSold ? 'line-through text-neutral-500' : 'text-white group-hover:text-[#d4af37]'}`}>
+              <span className={`font-mono text-sm sm:text-base font-semibold tracking-tight truncate ${isSold ? 'line-through text-[#6e7382]' : 'text-[#f4f4f6] group-hover:text-white'}`}>
                 {item.username.startsWith('@') ? item.username : `@${item.username}`}
               </span>
               {item.isBest4 && (
-                <span className="text-[9px] font-mono border border-[#d4af37]/60 text-[#d4af37] px-1 py-0.2 uppercase shrink-0">
-                  TOP
+                <span className="text-[10px] font-mono text-[#a0a3ad] border border-[#2b2f3a] px-1 py-0.2 rounded-[2px] shrink-0">
+                  Prime
                 </span>
               )}
               {item.isNew && !isSold && (
-                <span className="text-[9px] font-mono border border-emerald-500/50 text-emerald-400 px-1 py-0.2 uppercase shrink-0">
-                  NEW
+                <span className="text-[10px] font-mono text-emerald-400 border border-emerald-500/30 px-1 py-0.2 rounded-[2px] shrink-0">
+                  New
                 </span>
               )}
               {item.isHot && !isSold && (
-                <span className="text-[9px] font-mono border border-rose-500/50 text-rose-400 px-1 py-0.2 uppercase shrink-0">
-                  HOT
+                <span className="text-[10px] font-mono text-rose-400 border border-rose-500/30 px-1 py-0.2 rounded-[2px] shrink-0">
+                  High demand
                 </span>
               )}
             </div>
             {item.description && (
-              <p className="text-xs text-neutral-400 truncate max-w-xs sm:max-w-md mt-0.5">
+              <p className="text-xs text-[#8b909e] truncate max-w-xs sm:max-w-md mt-0.5">
                 {item.description}
               </p>
             )}
           </div>
         </div>
 
-        <div className="flex items-center gap-2 sm:gap-4 shrink-0">
+        <div className="flex items-center gap-3 sm:gap-5 shrink-0">
           <div className="text-right">
-            <div className={`font-mono text-sm sm:text-base font-bold ${isSold ? 'text-neutral-500' : 'text-white'}`}>
+            <div className={`font-mono text-xs sm:text-sm font-semibold tabular-nums ${isSold ? 'text-[#6e7382]' : 'text-[#f4f4f6]'}`}>
               {displayPrice}
             </div>
             {originalPrice && (
-              <div className="text-[10px] font-mono text-neutral-400 line-through">
+              <div className="text-[10px] font-mono text-[#6e7382] line-through tabular-nums">
                 {originalPrice}
               </div>
             )}
@@ -101,7 +100,7 @@ export const UsernameItem: React.FC<UsernameItemProps> = ({
                   e.stopPropagation();
                   onBuy(item);
                 }}
-                className="px-3 py-1 border border-[#d4af37] bg-[#d4af37] hover:bg-[#e2bd45] text-[#0a0b0e] font-mono font-bold text-xs uppercase tracking-wider transition-all"
+                className="h-7 px-3 bg-[#f4f4f6] hover:bg-white text-[#07080a] font-mono text-xs font-medium tracking-tight transition-colors duration-150 rounded-[2px]"
               >
                 Buy
               </button>
@@ -109,9 +108,9 @@ export const UsernameItem: React.FC<UsernameItemProps> = ({
             <button
               onClick={handleCopy}
               title="Copy handle"
-              className="p-1.5 border border-[#262830] bg-[#16181f] hover:bg-[#20222a] text-neutral-400 hover:text-white transition-colors"
+              className="h-7 w-7 flex items-center justify-center border border-[#1c1f26] bg-[#12141a] hover:bg-[#181b24] text-[#8b909e] hover:text-[#f4f4f6] transition-colors duration-150 rounded-[2px]"
             >
-              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
                 {copied ? (
                   <polyline points="20 6 9 17 4 12" />
                 ) : (
@@ -132,56 +131,56 @@ export const UsernameItem: React.FC<UsernameItemProps> = ({
   return (
     <div
       onClick={() => onSelect(item)}
-      className={`group relative flex flex-col justify-between border bg-[#101115] hover:bg-[#13151b] p-4 sm:p-5 cursor-pointer transition-colors ${
+      className={`group relative flex flex-col justify-between border bg-[#0d0f14] hover:bg-[#11131a] p-4 sm:p-5 cursor-pointer transition-colors duration-150 rounded-[2px] ${
         isSold
-          ? 'border-[#1e2026] opacity-60'
+          ? 'border-[#171920] opacity-60'
           : item.isBest4
-          ? 'border-[#d4af37]/40 hover:border-[#d4af37]'
-          : 'border-[#22242c] hover:border-[#383c48]'
+          ? 'border-[#2e3340] hover:border-[#444a5c]'
+          : 'border-[#1c1f26] hover:border-[#2b2f3a]'
       }`}
     >
-      {/* Top row */}
+      {/* Top category row */}
       <div className="flex items-center justify-between gap-2 mb-3">
-        <span className="text-[10px] font-mono tracking-widest uppercase text-neutral-400">
-          {displayCategory}
+        <span className="text-[11px] font-mono text-[#8b909e]">
+          [{displayCategory}]
         </span>
 
         <div className="flex items-center gap-1.5">
           {item.isBest4 && (
-            <span className="text-[9px] font-mono border border-[#d4af37]/60 text-[#d4af37] px-1.5 py-0.5 uppercase tracking-wider">
-              PRIME
+            <span className="text-[10px] font-mono border border-[#2b2f3a] text-[#b3b7c2] px-1.5 py-0.5 rounded-[2px]">
+              Prime
             </span>
           )}
           {item.isNew && !isSold && (
-            <span className="text-[9px] font-mono border border-emerald-500/50 text-emerald-400 px-1 py-0.5 uppercase">
-              NEW
+            <span className="text-[10px] font-mono border border-emerald-500/30 text-emerald-400 px-1.5 py-0.5 rounded-[2px]">
+              New
             </span>
           )}
           {item.isHot && !isSold && (
-            <span className="text-[9px] font-mono border border-rose-500/50 text-rose-400 px-1 py-0.5 uppercase">
-              HOT
+            <span className="text-[10px] font-mono border border-rose-500/30 text-rose-400 px-1.5 py-0.5 rounded-[2px]">
+              High demand
             </span>
           )}
           {isSold && (
-            <span className="text-[9px] font-mono border border-neutral-600 text-neutral-400 px-1 py-0.5 uppercase">
-              SOLD
+            <span className="text-[10px] font-mono border border-[#242732] text-[#6e7382] px-1.5 py-0.5 rounded-[2px]">
+              Sold
             </span>
           )}
         </div>
       </div>
 
       {/* Main Handle */}
-      <div className="my-3 min-w-0">
+      <div className="my-2 min-w-0">
         <div className="flex items-center justify-between gap-2">
-          <h3 className={`font-mono text-xl sm:text-2xl font-bold tracking-tight truncate ${isSold ? 'line-through text-neutral-500' : 'text-white group-hover:text-[#d4af37]'}`}>
+          <h3 className={`font-mono text-lg sm:text-xl font-semibold tracking-tight truncate ${isSold ? 'line-through text-[#6e7382]' : 'text-[#f4f4f6] group-hover:text-white'}`}>
             {item.username.startsWith('@') ? item.username : `@${item.username}`}
           </h3>
           <button
             onClick={handleCopy}
             title="Copy handle"
-            className="p-1.5 border border-[#262830] bg-[#16181f] hover:bg-[#20222a] text-neutral-400 hover:text-white transition-colors shrink-0"
+            className="h-7 w-7 flex items-center justify-center border border-[#1c1f26] bg-[#12141a] hover:bg-[#181b24] text-[#8b909e] hover:text-[#f4f4f6] transition-colors duration-150 shrink-0 rounded-[2px]"
           >
-            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
               {copied ? (
                 <polyline points="20 6 9 17 4 12" />
               ) : (
@@ -195,34 +194,34 @@ export const UsernameItem: React.FC<UsernameItemProps> = ({
         </div>
 
         {item.description ? (
-          <p className="text-xs text-neutral-400 mt-2 line-clamp-2 leading-relaxed">
+          <p className="text-xs text-[#8b909e] mt-2 line-clamp-2 leading-relaxed">
             {item.description}
           </p>
         ) : (
-          <p className="text-xs text-neutral-400 mt-2">
-            Verified Discord identifier.
+          <p className="text-xs text-[#6e7382] mt-2">
+            Verified identifier in cold escrow.
           </p>
         )}
       </div>
 
       {/* Price & Action Footer */}
-      <div className="pt-3 mt-3 border-t border-[#1c1e24] flex items-center justify-between">
+      <div className="pt-3 mt-3 border-t border-[#1c1f26] flex items-center justify-between">
         <div>
-          <div className="text-[9px] font-mono uppercase tracking-widest text-neutral-400">
-            {isSold ? 'STATUS' : 'PRICE'}
+          <div className="text-[10px] font-mono text-[#6e7382]">
+            {isSold ? 'Status' : 'Price'}
           </div>
           <div className="flex items-baseline gap-1.5 mt-0.5">
-            <span className={`font-mono text-lg font-bold ${isSold ? 'text-neutral-500' : 'text-white'}`}>
+            <span className={`font-mono text-base font-semibold tabular-nums ${isSold ? 'text-[#6e7382]' : 'text-[#f4f4f6]'}`}>
               {displayPrice}
             </span>
             {originalPrice && (
-              <span className="text-[10px] font-mono line-through text-neutral-400">
+              <span className="text-[11px] font-mono line-through text-[#6e7382] tabular-nums">
                 {originalPrice}
               </span>
             )}
             {discountPercent && (
-              <span className="text-[9px] font-mono text-[#d4af37] border border-[#d4af37]/40 px-0.5">
-                -{discountPercent}
+              <span className="text-[10px] font-mono text-emerald-400 border border-emerald-500/30 px-1 rounded-[2px] tabular-nums">
+                {discountPercent}
               </span>
             )}
           </div>
@@ -232,9 +231,9 @@ export const UsernameItem: React.FC<UsernameItemProps> = ({
           {isSold ? (
             <button
               disabled
-              className="px-3.5 py-1.5 border border-[#262830] text-neutral-500 font-mono text-xs uppercase tracking-wider bg-transparent cursor-not-allowed"
+              className="h-8 px-3.5 border border-[#1c1f26] text-[#6e7382] font-mono text-xs cursor-not-allowed rounded-[2px]"
             >
-              Sold
+              Claimed
             </button>
           ) : (
             <button
@@ -246,7 +245,7 @@ export const UsernameItem: React.FC<UsernameItemProps> = ({
                   onSelect(item);
                 }
               }}
-              className="px-4 py-1.5 border border-[#d4af37] bg-[#d4af37] hover:bg-[#e2bd45] text-[#0a0b0e] font-mono font-bold text-xs uppercase tracking-wider transition-all shadow-[0_0_12px_rgba(212,175,55,0.18)] hover:shadow-[0_0_18px_rgba(212,175,55,0.35)]"
+              className="h-8 px-4 bg-[#f4f4f6] hover:bg-white text-[#07080a] font-mono font-medium text-xs tracking-tight transition-colors duration-150 rounded-[2px]"
             >
               Buy
             </button>

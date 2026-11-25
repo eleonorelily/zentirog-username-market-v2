@@ -32,13 +32,13 @@ export const CatalogFilters: React.FC<CatalogFiltersProps> = ({
   categoryCounts,
 }) => {
   return (
-    <div className="space-y-4">
-      {/* Top Search & Controls Row */}
-      <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_auto] gap-2.5 sm:gap-3">
-        {/* Instant Search input */}
+    <div className="space-y-3">
+      {/* Search and control bar */}
+      <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_auto] gap-2">
+        {/* Search Input */}
         <div className="relative">
-          <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-neutral-400">
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#6e7382]">
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
               <circle cx="11" cy="11" r="8" />
               <line x1="21" y1="21" x2="16.65" y2="16.65" />
             </svg>
@@ -47,15 +47,15 @@ export const CatalogFilters: React.FC<CatalogFiltersProps> = ({
             type="text"
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
-            placeholder="Search handle, prefix, or length (e.g. 3L, rare, vip)..."
-            className="w-full bg-[#101115] border border-[#23252c] focus:border-[#d4af37] text-white pl-10 pr-9 py-2.5 sm:py-3 text-sm font-mono placeholder:text-neutral-400 focus:outline-none transition-colors"
+            placeholder="Search by handle, length (e.g. 3L), or category"
+            className="w-full h-10 bg-[#0d0f14] border border-[#1c1f26] focus:border-[#3e4352] text-[#f4f4f6] pl-10 pr-12 text-xs font-mono placeholder:text-[#6e7382] focus:outline-none transition-colors rounded-[2px]"
           />
           {searchQuery && (
             <button
               onClick={() => onSearchChange('')}
-              className="absolute inset-y-0 right-0 pr-3 flex items-center text-neutral-400 hover:text-white font-mono text-xs"
+              className="absolute inset-y-0 right-0 pr-3 flex items-center text-[#6e7382] hover:text-[#f4f4f6] font-mono text-[11px] transition-colors"
             >
-              CLEAR
+              Clear
             </button>
           )}
         </div>
@@ -65,38 +65,36 @@ export const CatalogFilters: React.FC<CatalogFiltersProps> = ({
           <select
             value={sortOption}
             onChange={(e) => onSortChange(e.target.value as SortType)}
-            className="w-full md:w-auto bg-[#101115] border border-[#23252c] text-neutral-200 px-3.5 py-2.5 sm:py-3 text-xs font-mono uppercase tracking-wider focus:border-[#d4af37] focus:outline-none cursor-pointer"
+            className="w-full md:w-auto h-10 bg-[#0d0f14] border border-[#1c1f26] text-[#b3b7c2] px-3.5 text-xs font-mono focus:border-[#3e4352] focus:outline-none cursor-pointer transition-colors rounded-[2px]"
           >
-            <option value="price-desc">Price: Highest First</option>
-            <option value="price-asc">Price: Lowest First</option>
-            <option value="length-asc">Length: Shortest First</option>
+            <option value="price-desc">Price: high to low</option>
+            <option value="price-asc">Price: low to high</option>
+            <option value="length-asc">Length: shortest first</option>
             <option value="alpha-asc">Alphabetical: A to Z</option>
             <option value="alpha-desc">Alphabetical: Z to A</option>
           </select>
         </div>
 
-        {/* Action Toggles */}
+        {/* Stock Toggle & View Mode */}
         <div className="flex items-center gap-2">
-          {/* Hide Sold Toggle */}
           <button
             onClick={onToggleHideSold}
-            className={`flex-1 md:flex-initial px-3.5 py-2.5 sm:py-3 border text-xs font-mono uppercase tracking-wider transition-colors ${
+            className={`flex-1 md:flex-initial h-10 px-3.5 border text-xs font-mono transition-colors rounded-[2px] ${
               hideSold
-                ? 'bg-[#181a22] border-[#d4af37] text-white'
-                : 'bg-[#101115] border-[#23252c] text-neutral-400 hover:text-neutral-200'
+                ? 'bg-[#171922] border-[#3e4352] text-[#f4f4f6]'
+                : 'bg-[#0d0f14] border-[#1c1f26] text-[#8b909e] hover:text-[#f4f4f6] hover:border-[#2b2f3a]'
             }`}
           >
-            {hideSold ? 'Available Only' : 'Show All Stock'}
+            {hideSold ? 'Available only' : 'All stock'}
           </button>
 
-          {/* Grid/List View Toggle */}
           <button
             onClick={onViewModeToggle}
-            title={viewMode === 'grid' ? 'Switch to dense list' : 'Switch to card grid'}
-            className="p-2.5 sm:p-3 bg-[#101115] border border-[#23252c] hover:border-[#333742] text-neutral-400 hover:text-white transition-colors"
+            title={viewMode === 'grid' ? 'Switch to dense list view' : 'Switch to card grid'}
+            className="w-10 h-10 flex items-center justify-center bg-[#0d0f14] border border-[#1c1f26] hover:border-[#2b2f3a] text-[#8b909e] hover:text-[#f4f4f6] transition-colors rounded-[2px]"
           >
             {viewMode === 'grid' ? (
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
                 <line x1="8" y1="6" x2="21" y2="6" />
                 <line x1="8" y1="12" x2="21" y2="12" />
                 <line x1="8" y1="18" x2="21" y2="18" />
@@ -105,18 +103,18 @@ export const CatalogFilters: React.FC<CatalogFiltersProps> = ({
                 <line x1="3" y1="18" x2="3.01" y2="18" />
               </svg>
             ) : (
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <rect x="3" y="3" width="7" height="7" />
-                <rect x="14" y="3" width="7" height="7" />
-                <rect x="14" y="14" width="7" height="7" />
-                <rect x="3" y="14" width="7" height="7" />
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <rect x="3" y="3" width="7" height="7" rx="1" />
+                <rect x="14" y="3" width="7" height="7" rx="1" />
+                <rect x="14" y="14" width="7" height="7" rx="1" />
+                <rect x="3" y="14" width="7" height="7" rx="1" />
               </svg>
             )}
           </button>
         </div>
       </div>
 
-      {/* Category Filter Chips */}
+      {/* Category filter strip */}
       <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
         {categories.map((cat) => {
           const count = categoryCounts[cat] ?? 0;
@@ -125,16 +123,16 @@ export const CatalogFilters: React.FC<CatalogFiltersProps> = ({
             <button
               key={cat}
               onClick={() => onCategorySelect(cat)}
-              className={`px-3 py-1.5 border text-xs font-mono uppercase tracking-wider whitespace-nowrap transition-colors flex items-center gap-2 ${
+              className={`h-7 px-2.5 border text-xs font-mono whitespace-nowrap transition-colors flex items-center gap-1.5 rounded-[2px] ${
                 isSelected
-                  ? 'border-[#d4af37] bg-[#161820] text-white font-bold'
-                  : 'border-[#1f2127] bg-[#0d0e12] text-neutral-400 hover:border-[#2d303a] hover:text-neutral-200'
+                  ? 'border-[#3e4352] bg-[#161822] text-[#f4f4f6]'
+                  : 'border-[#1c1f26] bg-[#0d0f14] text-[#8b909e] hover:border-[#2b2f3a] hover:text-[#f4f4f6]'
               }`}
             >
               <span>{cat}</span>
               {count > 0 && (
-                <span className={`text-[10px] ${isSelected ? 'text-[#d4af37]' : 'text-neutral-400'}`}>
-                  {count}
+                <span className={`text-[10px] tabular-nums ${isSelected ? 'text-[#f4f4f6]' : 'text-[#6e7382]'}`}>
+                  [{count}]
                 </span>
               )}
             </button>

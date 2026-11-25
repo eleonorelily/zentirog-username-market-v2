@@ -67,7 +67,7 @@ const Index = () => {
   const { data: usernames = [], isLoading, error } = useQuery({
     queryKey: ['usernames'],
     queryFn: fetchPublishedUsernames,
-    staleTime: 60000, // Cache for 1 full minute to prevent unnecessary re-fetching
+    staleTime: 60000,
   });
 
   // Normalize handle from URL param (supports @user or user)
@@ -112,6 +112,12 @@ const Index = () => {
   const availableUsernames = useMemo(() => usernames.filter(u => !u.isSold), [usernames]);
   const soldUsernames = useMemo(() => usernames.filter(u => u.isSold), [usernames]);
 
+  // Featured specimen for hero product moment
+  const featuredItem = useMemo(() => {
+    if (availableUsernames.length === 0) return null;
+    return availableUsernames.find(u => u.isBest4) || availableUsernames[0];
+  }, [availableUsernames]);
+
   // Dynamic Category extraction
   const categories = useMemo(() => {
     const list = ['All'];
@@ -148,12 +154,10 @@ const Index = () => {
   const filteredUsernames = useMemo(() => {
     let list = usernames;
 
-    // Hide sold if toggled
     if (hideSold) {
       list = list.filter(u => !u.isSold);
     }
 
-    // Category filter
     if (selectedCategory === 'New Drops') {
       list = list.filter(u => u.isNew && !u.isSold);
     } else if (selectedCategory === 'High Demand') {
@@ -174,10 +178,8 @@ const Index = () => {
       list = list.filter(u => u.isSold);
     }
 
-    // Search query
     if (searchQuery.trim()) {
       const q = searchQuery.trim().toLowerCase();
-      // Special length query: e.g. "3l" or "4c"
       const lengthMatch = q.match(/^(\d+)(?:l|c|char|letter)?$/);
       if (lengthMatch) {
         const targetLen = parseInt(lengthMatch[1], 10);
@@ -207,7 +209,7 @@ const Index = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#090a0d] text-[#eaebee] flex flex-col font-sans">
+    <div className="min-h-screen bg-[#07080a] text-[#f4f4f6] flex flex-col font-sans">
       {/* Navigation */}
       <Navbar
         totalCount={usernames.length}
@@ -217,50 +219,98 @@ const Index = () => {
       />
 
       {/* Main Container */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-8">
-        {/* Marketplace Banner / Value Overview */}
-        <div className="border border-[#1f2127] bg-[#0d0e12] p-5 sm:p-8">
-          <div className="grid grid-cols-1 lg:grid-cols-[1.5fr_1fr] gap-6 items-end">
-            <div>
-              <div className="flex items-center gap-2 mb-3">
-                <span className="w-2 h-2 rounded-none bg-[#d4af37]" />
-                <span className="text-[11px] font-mono tracking-widest uppercase text-neutral-400">
-                  #1 Discord Usernames & Account Market
-                </span>
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-8 sm:py-10 space-y-8">
+        {/* Asymmetric Split Hero: Editorial Summary & Live Specimen Moment */}
+        <section className="border border-[#1c1f26] bg-[#0d0f14] p-6 sm:p-8 rounded-[2px]">
+          <div className="grid grid-cols-1 lg:grid-cols-[1.4fr_1fr] gap-8 items-center">
+            {/* Left Column: Swiss Editorial Context */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 text-xs font-mono text-[#8b909e]">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                <span>[registry / 001] Curated Discord handle vault</span>
               </div>
-              <h1 className="font-display text-2xl sm:text-4xl md:text-5xl font-extrabold tracking-tight text-white uppercase leading-[1.05]">
-                Discord Usernames Market
+
+              <h1 className="text-2xl sm:text-3xl md:text-4xl font-semibold tracking-tight text-[#f4f4f6] leading-tight">
+                Rare Discord handles & pre-claimed account vault
               </h1>
-              <p className="mt-3 text-xs sm:text-sm text-neutral-400 max-w-2xl leading-relaxed">
-                The premier digital username market for verified Discord handles. Browse rare 3-letter (3L), 4-letter (4L), clean words, and OG pre-claimed Discord accounts with secure escrow transfer and instant handoff.
+
+              <p className="text-xs sm:text-sm text-[#8b909e] max-w-xl leading-relaxed">
+                Direct exchange for verified 3-letter, 4-letter, dictionary words, and punctuation handles. Each identifier is transferred as a secured pre-claimed account with automated escrow handover.
               </p>
+
+              {/* Quiet tabular metrics row */}
+              <div className="grid grid-cols-3 gap-2 pt-2 border-t border-[#1c1f26] text-xs font-mono text-[#8b909e]">
+                <div>
+                  <div className="text-[11px] text-[#6e7382]">Available</div>
+                  <div className="text-base sm:text-lg font-medium text-[#f4f4f6] tabular-nums mt-0.5">
+                    {availableUsernames.length}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[11px] text-[#6e7382]">Claimed</div>
+                  <div className="text-base sm:text-lg font-medium text-[#8b909e] tabular-nums mt-0.5">
+                    {soldUsernames.length}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[11px] text-[#6e7382]">Handoff</div>
+                  <div className="text-base sm:text-lg font-medium text-[#f4f4f6] mt-0.5">
+                    Escrow
+                  </div>
+                </div>
+              </div>
             </div>
 
-            {/* Live Metrics Shelf */}
-            <div className="grid grid-cols-3 gap-2 border-t lg:border-t-0 lg:border-l border-[#1f2127] pt-4 lg:pt-0 lg:pl-6 text-center">
-              <div className="p-2 sm:p-3 bg-[#111216] border border-[#1a1c22]">
-                <div className="text-[10px] font-mono uppercase text-neutral-400">Available</div>
-                <div className="text-xl sm:text-2xl font-mono font-bold text-white mt-1">
-                  {availableUsernames.length}
+            {/* Right Column: Hero Product Moment (Verified Specimen Card) */}
+            {featuredItem && (
+              <div 
+                onClick={() => handleSelectItem(featuredItem)}
+                className="group border border-[#242834] bg-[#11131a] hover:border-[#3e4456] p-5 cursor-pointer transition-colors duration-150 rounded-[2px]"
+              >
+                <div className="flex items-center justify-between text-[11px] font-mono text-[#8b909e] pb-3 border-b border-[#1c1f26]">
+                  <span>[specimen sheet]</span>
+                  <span className="text-emerald-400 flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block" />
+                    Verified asset
+                  </span>
+                </div>
+
+                <div className="my-4">
+                  <div className="text-xl sm:text-2xl font-mono font-semibold tracking-tight text-[#f4f4f6] group-hover:text-white transition-colors">
+                    {featuredItem.username.startsWith('@') ? featuredItem.username : `@${featuredItem.username}`}
+                  </div>
+                  <p className="text-xs text-[#8b909e] mt-1.5 line-clamp-2">
+                    {featuredItem.description || 'Pre-claimed Discord identifier ready for immediate transfer.'}
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2 py-2.5 border-y border-[#1c1f26] text-[11px] font-mono text-[#8b909e]">
+                  <div>
+                    <span className="text-[#6e7382] block text-[10px]">Length</span>
+                    <span className="text-[#f4f4f6] tabular-nums">{featuredItem.username.length}L</span>
+                  </div>
+                  <div>
+                    <span className="text-[#6e7382] block text-[10px]">Category</span>
+                    <span className="text-[#f4f4f6] truncate block">{featuredItem.category || 'General'}</span>
+                  </div>
+                  <div>
+                    <span className="text-[#6e7382] block text-[10px]">Price</span>
+                    <span className="text-[#f4f4f6] tabular-nums">{featuredItem.price}</span>
+                  </div>
+                </div>
+
+                <div className="mt-3.5 flex items-center justify-between text-xs font-mono">
+                  <span className="text-[#6e7382]">Inspect specimen</span>
+                  <span className="text-[#f4f4f6] group-hover:translate-x-0.5 transition-transform duration-150">
+                    View spec sheet →
+                  </span>
                 </div>
               </div>
-              <div className="p-2 sm:p-3 bg-[#111216] border border-[#1a1c22]">
-                <div className="text-[10px] font-mono uppercase text-neutral-400">Claimed</div>
-                <div className="text-xl sm:text-2xl font-mono font-bold text-neutral-300 mt-1">
-                  {soldUsernames.length}
-                </div>
-              </div>
-              <div className="p-2 sm:p-3 bg-[#111216] border border-[#1a1c22]">
-                <div className="text-[10px] font-mono uppercase text-neutral-400">Transfer</div>
-                <div className="text-xs sm:text-sm font-mono font-bold text-[#d4af37] mt-2">
-                  ESCROW
-                </div>
-              </div>
-            </div>
+            )}
           </div>
-        </div>
+        </section>
 
-        {/* Filter & Search Bar */}
+        {/* Filter and Search Bar */}
         <CatalogFilters
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
@@ -281,7 +331,7 @@ const Index = () => {
 
         {/* Error Fallback */}
         {error && (
-          <div className="border border-red-900/40 bg-[#140e10] p-6 text-center text-sm font-mono text-red-200">
+          <div className="border border-red-900/30 bg-[#140e10] p-6 text-center text-xs font-mono text-red-200 rounded-[2px]">
             Database connection timeout. Please verify internet access or re-open the market.
           </div>
         )}
@@ -291,7 +341,7 @@ const Index = () => {
           <>
             {sortedList.length > 0 ? (
               viewMode === 'grid' ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5 sm:gap-3">
                   {sortedList.map(item => (
                     <UsernameItem
                       key={`${item.username}-${item.id || item.price}`}
@@ -304,7 +354,7 @@ const Index = () => {
                   ))}
                 </div>
               ) : (
-                <div className="border border-[#20222a] divide-y divide-[#181a20]">
+                <div className="border border-[#1c1f26] divide-y divide-[#171920] rounded-[2px] overflow-hidden">
                   {sortedList.map(item => (
                     <UsernameItem
                       key={`${item.username}-${item.id || item.price}`}
@@ -318,12 +368,12 @@ const Index = () => {
                 </div>
               )
             ) : (
-              <div className="border border-[#20222a] bg-[#0e0f13] p-12 text-center space-y-3">
-                <div className="text-xs font-mono tracking-widest uppercase text-neutral-400">
-                  No Matching Identifiers Found
+              <div className="border border-[#1c1f26] bg-[#0d0f14] p-12 text-center space-y-3 rounded-[2px]">
+                <div className="text-xs font-mono text-[#8b909e]">
+                  No matching identifiers found
                 </div>
-                <p className="text-sm text-neutral-400 max-w-md mx-auto">
-                  Try adjusting search parameters, clearing length filters, or check the Discord server for private unlisted inventory.
+                <p className="text-xs text-[#6e7382] max-w-md mx-auto">
+                  Try adjusting search parameters, clearing length filters, or contact our Discord desk for unlisted inventory.
                 </p>
                 <button
                   onClick={() => {
@@ -331,9 +381,9 @@ const Index = () => {
                     setSelectedCategory('All');
                     setHideSold(false);
                   }}
-                  className="px-4 py-2 border border-[#2c2f38] bg-[#16171d] hover:bg-[#202229] text-xs font-mono uppercase text-white transition-colors"
+                  className="h-8 px-4 border border-[#262933] bg-[#12141a] hover:bg-[#181b24] text-xs font-mono text-[#f4f4f6] transition-colors rounded-[2px]"
                 >
-                  Reset Catalog Filters
+                  Reset filters
                 </button>
               </div>
             )}
@@ -341,112 +391,114 @@ const Index = () => {
         )}
 
         {/* Buyer Protection & Escrow Protocol Walkthrough */}
-        <div className="border border-[#1f2127] bg-[#0c0d10] p-6 sm:p-8">
-          <div className="max-w-3xl">
-            <div className="text-[10px] font-mono tracking-widest uppercase text-[#d4af37] mb-2">
-              Buyer Policy & Security Terms
+        <section className="border border-[#1c1f26] bg-[#0d0f14] p-6 sm:p-8 rounded-[2px]">
+          <div className="max-w-3xl space-y-3">
+            <div className="text-xs font-mono text-[#8b909e]">
+              [security protocol]
             </div>
-            <h2 className="text-lg sm:text-xl font-display font-bold uppercase tracking-wider text-white">
-              Account Transfer & Security Policy
+            <h2 className="text-lg sm:text-xl font-medium tracking-tight text-[#f4f4f6]">
+              Account transfer & security terms
             </h2>
-            <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4 text-xs font-sans text-neutral-400">
-              <div className="border-t border-[#1f2127] pt-3">
-                <span className="font-mono text-neutral-300 font-bold block mb-1">01 / Pre-Claimed Account</span>
-                You are purchasing full access to a Discord account with the target username already claimed on it.
+            <div className="pt-3 grid grid-cols-1 md:grid-cols-3 gap-4 text-xs font-sans text-[#8b909e]">
+              <div className="border-t border-[#1c1f26] pt-3">
+                <span className="font-mono text-[#f4f4f6] font-medium block mb-1">[01] Pre-claimed account</span>
+                You are purchasing full custody of a Discord account with the target username already claimed on it.
               </div>
-              <div className="border-t border-[#1f2127] pt-3">
-                <span className="font-mono text-[#d4af37] font-bold block mb-1">02 / Secure Immediately</span>
-                Upon delivery, you must immediately change the email, password, and enable 2-Factor Authentication (2FA).
+              <div className="border-t border-[#1c1f26] pt-3">
+                <span className="font-mono text-[#f4f4f6] font-medium block mb-1">[02] Immediate security</span>
+                Upon delivery, you must immediately update the email, change the password, and enable two-factor authentication (2FA).
               </div>
-              <div className="border-t border-[#1f2127] pt-3">
-                <span className="font-mono text-neutral-300 font-bold block mb-1">03 / Buyer Responsibility</span>
-                Once credentials are provided and sale is completed, all security and liability rests on the buyer.
+              <div className="border-t border-[#1c1f26] pt-3">
+                <span className="font-mono text-[#f4f4f6] font-medium block mb-1">[03] Buyer custody</span>
+                Once credentials are provided and the transaction completes, full security custody rests on the buyer.
               </div>
             </div>
           </div>
-        </div>
+        </section>
 
-        {/* SEO FAQ & Knowledge Base for Search Engines */}
-        <section className="border border-[#1f2127] bg-[#0c0d10] p-6 sm:p-8 space-y-6">
-          <div className="max-w-3xl">
-            <span className="text-[10px] font-mono uppercase tracking-widest text-[#d4af37]">
-              FAQ & Buyer Guide
+        {/* Knowledge Base & FAQs */}
+        <section className="border border-[#1c1f26] bg-[#0d0f14] p-6 sm:p-8 space-y-6 rounded-[2px]">
+          <div className="max-w-3xl space-y-1">
+            <span className="text-xs font-mono text-[#8b909e]">
+              [knowledge base]
             </span>
-            <h2 className="text-xl sm:text-2xl font-display font-bold uppercase tracking-wider text-white mt-1">
-              About The Discord Username Market
+            <h2 className="text-lg sm:text-xl font-medium tracking-tight text-[#f4f4f6]">
+              Frequently asked questions
             </h2>
-            <p className="text-xs text-neutral-400 font-mono mt-1">
-              Everything you need to know about buying rare Discord usernames and user accounts.
+            <p className="text-xs text-[#6e7382]">
+              Guidance on acquiring verified Discord handles and account custody.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5 text-xs text-neutral-300">
-            <div className="border border-[#1e2026] bg-[#101115] p-4 space-y-2">
-              <h3 className="font-mono font-bold text-white text-sm">
-                What is a Discord Username Market?
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs text-[#8b909e]">
+            <div className="border border-[#1c1f26] bg-[#101218] p-4 space-y-2 rounded-[2px]">
+              <h3 className="font-mono font-medium text-[#f4f4f6]">
+                What is a Discord username exchange?
               </h3>
-              <p className="text-neutral-400 leading-relaxed">
-                A Discord username market is a curated exchange where buyers can find and acquire rare, short (such as 3-letter or 4-letter), clean dictionary words, and vanity Discord handles that are otherwise unavailable or claimed.
+              <p className="leading-relaxed">
+                A curated marketplace where collectors can acquire rare, short (3-letter or 4-letter), clean dictionary words, and vanity Discord handles that are otherwise claimed or unavailable.
               </p>
             </div>
 
-            <div className="border border-[#1e2026] bg-[#101115] p-4 space-y-2">
-              <h3 className="font-mono font-bold text-white text-sm">
-                How does the purchase and transfer process work?
+            <div className="border border-[#1c1f26] bg-[#101218] p-4 space-y-2 rounded-[2px]">
+              <h3 className="font-mono font-medium text-[#f4f4f6]">
+                How does the purchase and transfer work?
               </h3>
-              <p className="text-neutral-400 leading-relaxed">
-                When you choose an available username in our live market, simply tap "Inquire via Discord" to speak with our desk. Usernames are transferred directly as pre-claimed accounts with clear instructions to change email, password, and enable 2FA immediately.
+              <p className="leading-relaxed">
+                Select an available handle to initiate direct crypto checkout or contact our Discord desk. Accounts are transferred directly with pre-claimed credentials, followed by immediate email and 2FA updating.
               </p>
             </div>
 
-            <div className="border border-[#1e2026] bg-[#101115] p-4 space-y-2">
-              <h3 className="font-mono font-bold text-white text-sm">
-                Why buy 3-Letter (3L) or 4-Letter (4L) Discord handles?
+            <div className="border border-[#1c1f26] bg-[#101218] p-4 space-y-2 rounded-[2px]">
+              <h3 className="font-mono font-medium text-[#f4f4f6]">
+                Why collect 3-Letter (3L) or 4-Letter (4L) handles?
               </h3>
-              <p className="text-neutral-400 leading-relaxed">
-                Short Discord usernames carry high prestige, brand memorability, and vanity value across gaming communities, crypto networks, and creator platforms. Due to finite mathematical combinations, supply is strictly limited.
+              <p className="leading-relaxed">
+                Short Discord usernames carry memorability and vanity value across gaming and creator communities. Mathematical combination limits create strict natural scarcity.
               </p>
             </div>
 
-            <div className="border border-[#1e2026] bg-[#101115] p-4 space-y-2">
-              <h3 className="font-mono font-bold text-white text-sm">
-                Is buyer escrow and safety guaranteed?
+            <div className="border border-[#1c1f26] bg-[#101218] p-4 space-y-2 rounded-[2px]">
+              <h3 className="font-mono font-medium text-[#f4f4f6]">
+                Is escrow transfer guaranteed?
               </h3>
-              <p className="text-neutral-400 leading-relaxed">
-                Yes. Every deal follows a transparent protocol where handle ownership and account credentials are verified before release, ensuring safe transactions for all buyers.
+              <p className="leading-relaxed">
+                Yes. Every exchange follows an escrow verification checklist where handle ownership and credentials are validated prior to handoff.
               </p>
             </div>
           </div>
         </section>
       </main>
 
-      {/* Luxury Minimal Footer */}
-      <footer className="border-t border-[#1a1c22] bg-[#08090b] mt-12 py-8">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs font-mono text-neutral-400">
-          <div className="flex items-center gap-3">
-            <span className="text-white font-bold tracking-widest uppercase">ZENTIROG</span>
+      {/* Swiss Minimalist Footer */}
+      <footer className="border-t border-[#1c1f26] bg-[#07080a] mt-12 py-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs font-mono text-[#8b909e]">
+          <div className="flex items-center gap-2">
+            <span className="text-[#f4f4f6] font-medium">zentirog</span>
+            <span className="text-[#3e424e]">/</span>
+            <span>registry</span>
           </div>
 
           <div className="flex items-center gap-6">
             <button
               onClick={() => handleOpenLegal('tos')}
-              className="hover:text-neutral-200 transition-colors uppercase"
+              className="hover:text-[#f4f4f6] transition-colors"
             >
-              Terms of Transfer
+              Terms of transfer
             </button>
             <button
               onClick={() => handleOpenLegal('privacy')}
-              className="hover:text-neutral-200 transition-colors uppercase"
+              className="hover:text-[#f4f4f6] transition-colors"
             >
-              Privacy Policy
+              Privacy policy
             </button>
             <a
               href={discordLink}
               target="_blank"
               rel="noopener noreferrer"
-              className="hover:text-neutral-200 transition-colors uppercase"
+              className="hover:text-[#f4f4f6] transition-colors"
             >
-              Discord Inquiries
+              Discord desk
             </a>
           </div>
         </div>

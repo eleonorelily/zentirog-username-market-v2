@@ -20,39 +20,39 @@ export const LegalModal: React.FC<LegalModalProps> = ({
       role="dialog"
       aria-modal="true"
       aria-labelledby="legal-modal-title"
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
     >
       <div 
-        className="relative w-full max-w-2xl bg-[#101115] border border-[#262830] text-[#eaebee] max-h-[85vh] flex flex-col rounded-none"
+        className="relative w-full max-w-2xl bg-[#0d0f14] border border-[#1c1f26] text-[#f4f4f6] max-h-[85vh] flex flex-col rounded-[2px]"
       >
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-[#262830] px-6 py-4 bg-[#0d0e12]">
+        <div className="flex items-center justify-between border-b border-[#1c1f26] px-6 py-4 bg-[#0a0c10]">
           <div className="flex items-center gap-6">
             <button
               onClick={() => setActiveTab('tos')}
-              className={`text-xs uppercase tracking-widest font-mono pb-1 border-b-2 transition-colors ${
+              className={`text-xs font-mono pb-1 border-b-2 transition-colors ${
                 activeTab === 'tos'
-                  ? 'border-[#d4af37] text-white font-bold'
-                  : 'border-transparent text-neutral-400 hover:text-neutral-200'
+                  ? 'border-[#f4f4f6] text-[#f4f4f6] font-medium'
+                  : 'border-transparent text-[#8b909e] hover:text-[#f4f4f6]'
               }`}
             >
-              Terms of Transfer
+              Terms of transfer
             </button>
             <button
               onClick={() => setActiveTab('privacy')}
-              className={`text-xs uppercase tracking-widest font-mono pb-1 border-b-2 transition-colors ${
+              className={`text-xs font-mono pb-1 border-b-2 transition-colors ${
                 activeTab === 'privacy'
-                  ? 'border-[#d4af37] text-white font-bold'
-                  : 'border-transparent text-neutral-400 hover:text-neutral-200'
+                  ? 'border-[#f4f4f6] text-[#f4f4f6] font-medium'
+                  : 'border-transparent text-[#8b909e] hover:text-[#f4f4f6]'
               }`}
             >
-              Privacy Policy
+              Privacy policy
             </button>
           </div>
           <button
             onClick={onClose}
             aria-label="Close dialog"
-            className="text-neutral-400 hover:text-white p-1 text-sm font-mono"
+            className="text-[#8b909e] hover:text-[#f4f4f6] p-1 text-sm font-mono transition-colors"
           >
             ✕
           </button>

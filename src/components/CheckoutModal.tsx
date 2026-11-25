@@ -141,17 +141,17 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     <div
       role="dialog"
       aria-modal="true"
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 font-sans"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm font-sans"
     >
-      <div className="w-full max-w-md bg-[#101115] border border-[#262830] text-[#eaebee] flex flex-col">
+      <div className="w-full max-w-md bg-[#0d0f14] border border-[#1c1f26] text-[#f4f4f6] flex flex-col rounded-[2px]">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-[#202228] px-5 py-3.5 bg-[#0d0e12]">
-          <span className="text-[10px] font-mono tracking-widest uppercase text-[#d4af37]">
-            INSTANT CRYPTO ACQUISITION
+        <div className="flex items-center justify-between border-b border-[#1c1f26] px-5 py-3.5 bg-[#0a0c10]">
+          <span className="text-xs font-mono text-[#8b909e]">
+            [checkout] Instant acquisition
           </span>
           <button
             onClick={onClose}
-            className="text-neutral-400 hover:text-white font-mono text-sm p-1"
+            className="text-[#8b909e] hover:text-[#f4f4f6] font-mono text-sm p-1 transition-colors"
           >
             ✕
           </button>
@@ -159,27 +159,27 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
         <div className="p-6 space-y-5">
           {/* Target Identifier Details */}
-          <div className="border border-[#202228] bg-[#0c0d10] p-4 flex items-center justify-between">
+          <div className="border border-[#1c1f26] bg-[#090b0f] p-4 flex items-center justify-between rounded-[2px]">
             <div>
-              <span className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest">
-                Target Identifier
+              <span className="text-[11px] font-mono text-[#6e7382]">
+                Target handle
               </span>
-              <div className="font-mono text-lg font-bold text-white">
+              <div className="font-mono text-base font-semibold text-[#f4f4f6] mt-0.5">
                 {username.username.startsWith('@') ? username.username : `@${username.username}`}
               </div>
             </div>
             <div className="text-right">
-              <span className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest">
-                Due Amount
+              <span className="text-[11px] font-mono text-[#6e7382]">
+                Total due
               </span>
-              <div className="flex items-baseline justify-end gap-1.5">
+              <div className="flex items-baseline justify-end gap-1.5 mt-0.5">
                 {appliedDiscount && (
-                  <span className="font-mono text-xs text-neutral-500 line-through">
+                  <span className="font-mono text-xs text-[#6e7382] line-through tabular-nums">
                     ${basePriceNum.toFixed(2)}
                   </span>
                 )}
-                <div className="font-mono text-xl font-extrabold text-[#d4af37]">
-                  {isFreeCheckout ? 'FREE' : `$${finalPriceNum.toFixed(2)}`}
+                <div className="font-mono text-lg font-semibold text-[#f4f4f6] tabular-nums">
+                  {isFreeCheckout ? 'Free' : `$${finalPriceNum.toFixed(2)}`}
                 </div>
               </div>
             </div>
@@ -188,8 +188,8 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
           <form onSubmit={handleCheckout} className="space-y-4">
             {/* Delivery Email Input */}
             <div>
-              <label className="block text-xs font-mono uppercase tracking-wider text-neutral-300 mb-1.5">
-                Delivery Email Address *
+              <label className="block text-xs font-mono text-[#8b909e] mb-1.5">
+                Delivery email address *
               </label>
               <input
                 type="email"
@@ -197,20 +197,20 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="customer@domain.com"
-                className="w-full bg-[#0a0b0e] border border-[#2c2f3a] focus:border-[#d4af37] px-3.5 py-2.5 text-sm font-mono text-white outline-none transition-colors"
+                className="w-full h-10 bg-[#090b0f] border border-[#1c1f26] focus:border-[#3e4352] px-3.5 text-xs font-mono text-[#f4f4f6] placeholder:text-[#6e7382] outline-none transition-colors rounded-[2px]"
               />
-              <p className="mt-1 text-[11px] text-neutral-400">
-                Your login credentials will be dispatched automatically to this address once verified.
+              <p className="mt-1 text-[11px] text-[#6e7382]">
+                Account credentials will be dispatched automatically upon confirmation.
               </p>
             </div>
 
             {/* Optional Discord Username Input */}
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <label className="block text-xs font-mono uppercase tracking-wider text-neutral-300">
-                  Discord Username
+                <label className="block text-xs font-mono text-[#8b909e]">
+                  Discord username
                 </label>
-                <span className="text-[10px] font-mono uppercase tracking-wider text-neutral-500">
+                <span className="text-[11px] font-mono text-[#6e7382]">
                   Optional
                 </span>
               </div>
@@ -218,33 +218,33 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 type="text"
                 value={discordUsername}
                 onChange={(e) => setDiscordUsername(e.target.value)}
-                placeholder="e.g. zentirog or username#0000"
-                className="w-full bg-[#0a0b0e] border border-[#2c2f3a] focus:border-[#d4af37] px-3.5 py-2.5 text-sm font-mono text-white outline-none transition-colors"
+                placeholder="e.g. zentirog"
+                className="w-full h-10 bg-[#090b0f] border border-[#1c1f26] focus:border-[#3e4352] px-3.5 text-xs font-mono text-[#f4f4f6] placeholder:text-[#6e7382] outline-none transition-colors rounded-[2px]"
               />
-              <p className="mt-1 text-[11px] text-neutral-400">
-                Provide your Discord handle for buyer role / priority support updates.
+              <p className="mt-1 text-[11px] text-[#6e7382]">
+                Used for buyer verification and support tracking.
               </p>
             </div>
 
             {/* Discount Code Input */}
-            <div className="border-t border-[#1d1f26] pt-3">
-              <label className="block text-xs font-mono uppercase tracking-wider text-neutral-300 mb-1.5">
-                Promo / Discount Code
+            <div className="border-t border-[#1c1f26] pt-3">
+              <label className="block text-xs font-mono text-[#8b909e] mb-1.5">
+                Promo code
               </label>
               <div className="flex gap-2">
                 <input
                   type="text"
                   value={discountCodeInput}
                   onChange={(e) => setDiscountCodeInput(e.target.value)}
-                  placeholder="e.g. VIP100"
+                  placeholder="e.g. VIP10"
                   disabled={Boolean(appliedDiscount)}
-                  className="flex-1 bg-[#0a0b0e] border border-[#2c2f3a] focus:border-[#d4af37] px-3 py-2 text-xs font-mono uppercase text-white outline-none transition-colors disabled:opacity-50"
+                  className="flex-1 h-9 bg-[#090b0f] border border-[#1c1f26] focus:border-[#3e4352] px-3 text-xs font-mono text-[#f4f4f6] placeholder:text-[#6e7382] outline-none transition-colors disabled:opacity-50 rounded-[2px]"
                 />
                 {appliedDiscount ? (
                   <button
                     type="button"
                     onClick={handleRemoveDiscount}
-                    className="px-3 py-2 bg-[#20222a] hover:bg-[#282a34] text-xs font-mono text-neutral-300 border border-[#343844] transition-colors"
+                    className="h-9 px-3 bg-[#161822] hover:bg-[#1f2230] text-xs font-mono text-[#8b909e] hover:text-[#f4f4f6] border border-[#2b2f3d] transition-colors rounded-[2px]"
                   >
                     Remove
                   </button>
@@ -253,7 +253,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                     type="button"
                     onClick={handleApplyDiscount}
                     disabled={validatingCode || !discountCodeInput.trim()}
-                    className="px-4 py-2 bg-[#181a22] hover:bg-[#222530] text-xs font-mono font-bold uppercase text-[#d4af37] border border-[#363a48] transition-colors disabled:opacity-50"
+                    className="h-9 px-4 bg-[#14161f] hover:bg-[#1b1e2a] text-xs font-mono text-[#f4f4f6] border border-[#232734] transition-colors disabled:opacity-50 rounded-[2px]"
                   >
                     {validatingCode ? 'Checking...' : 'Apply'}
                   </button>
@@ -270,102 +270,98 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               )}
             </div>
 
-            {/* Payment Method Switch / Credit Card Option */}
-            <div className="border border-[#23252d] bg-[#0c0d10] p-3 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest">
-                  Payment Method
-                </span>
-                <span className="text-[10px] font-mono text-[#d4af37] uppercase">
-                  Crypto / Card
-                </span>
+            {/* Payment Method Switch */}
+            <div className="border border-[#1c1f26] bg-[#090b0f] p-3 space-y-2 rounded-[2px]">
+              <div className="flex items-center justify-between text-[11px] font-mono">
+                <span className="text-[#6e7382]">Payment settlement</span>
+                <span className="text-[#8b909e]">Crypto / Card</span>
               </div>
 
               <div className="flex gap-2">
                 <button
                   type="button"
                   onClick={() => setShowCardNotice(false)}
-                  className={`flex-1 py-2 text-xs font-mono uppercase font-bold tracking-wider border transition-colors ${
+                  className={`flex-1 h-8 text-xs font-mono border transition-colors rounded-[2px] ${
                     !showCardNotice
-                      ? 'border-[#d4af37] bg-[#d4af37]/15 text-[#d4af37]'
-                      : 'border-[#262832] bg-[#121318] text-neutral-400 hover:text-white'
+                      ? 'border-[#3e4352] bg-[#161822] text-[#f4f4f6]'
+                      : 'border-[#1c1f26] bg-[#0d0f14] text-[#8b909e] hover:text-[#f4f4f6]'
                   }`}
                 >
-                  ⚡ Crypto (Instant)
+                  Crypto instant
                 </button>
                 <button
                   type="button"
                   onClick={() => setShowCardNotice(true)}
-                  className={`flex-1 py-2 text-xs font-mono uppercase font-bold tracking-wider border transition-colors ${
+                  className={`flex-1 h-8 text-xs font-mono border transition-colors rounded-[2px] ${
                     showCardNotice
-                      ? 'border-[#d4af37] bg-[#d4af37]/15 text-[#d4af37]'
-                      : 'border-[#262832] bg-[#121318] text-neutral-400 hover:text-white'
+                      ? 'border-[#3e4352] bg-[#161822] text-[#f4f4f6]'
+                      : 'border-[#1c1f26] bg-[#0d0f14] text-[#8b909e] hover:text-[#f4f4f6]'
                   }`}
                 >
-                  💳 Debit / Credit Card
+                  Card desk
                 </button>
               </div>
 
               {showCardNotice && (
-                <div className="mt-2.5 p-3.5 border border-[#3e341c] bg-[#18140c] space-y-2.5">
-                  <div className="text-[11px] font-mono font-bold uppercase text-[#d4af37] flex items-center gap-1.5">
-                    <span>Card Checkout via Discord Desk</span>
+                <div className="mt-2.5 p-3.5 border border-[#2b2f3d] bg-[#12141c] space-y-2 rounded-[2px]">
+                  <div className="text-xs font-mono text-[#f4f4f6]">
+                    Card invoice via Discord desk
                   </div>
-                  <p className="text-xs text-neutral-300 leading-relaxed font-sans">
-                    Credit and Debit card payments are processed securely with buyer invoice protection via our Discord desk.
+                  <p className="text-xs text-[#8b909e] leading-relaxed">
+                    Credit and debit card payments are processed securely with buyer invoice protection via our Discord desk.
                   </p>
-                  <p className="text-[11px] text-neutral-400 font-sans">
-                    Please open a ticket on Discord or message owner <strong className="text-white font-mono">@nonconfident</strong> mentioning you want to purchase <strong className="text-white font-mono">{username.username}</strong> with a card.
+                  <p className="text-[11px] text-[#6e7382]">
+                    Open a ticket or contact <strong className="text-[#f4f4f6] font-mono font-normal">@nonconfident</strong> to acquire <strong className="text-[#f4f4f6] font-mono font-normal">{username.username}</strong> with a card.
                   </p>
                   <a
                     href={discordLink}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center justify-center w-full py-2 bg-[#d4af37] hover:bg-[#e2bd45] text-[#090a0d] font-mono font-bold text-xs uppercase tracking-wider transition-colors"
+                    className="inline-flex items-center justify-center w-full h-8 bg-[#f4f4f6] hover:bg-white text-[#07080a] font-mono text-xs font-medium tracking-tight transition-colors rounded-[2px]"
                   >
-                    Open Discord & Pay With Card
+                    Open Discord desk
                   </a>
                 </div>
               )}
             </div>
 
-            {/* Security Policy Notice */}
+            {/* Delivery Notice */}
             {!showCardNotice && (
-              <div className="border border-[#23252d] bg-[#0c0d10] p-3.5 text-[11px] text-neutral-400 space-y-1 leading-relaxed">
-                <div className="font-mono text-neutral-300 uppercase tracking-wider text-[10px] font-bold">
-                  Automated Delivery Terms
+              <div className="border border-[#1c1f26] bg-[#090b0f] p-3 text-[11px] text-[#6e7382] space-y-1 rounded-[2px]">
+                <div className="font-mono text-[#8b909e] text-[11px]">
+                  Automated delivery format
                 </div>
                 <p>
-                  Credentials format <code className="text-[#d4af37]">mail:pass:token</code>. In case a handle is stored in cold storage, you will receive priority Discord desk fulfillment upon checkout.
+                  Credentials dispatched as <code className="text-[#b3b7c2]">email:password:token</code> with immediate handoff.
                 </p>
               </div>
             )}
 
             {error && (
-              <div className="p-3 border border-red-500/30 bg-red-950/20 text-red-300 text-xs font-mono">
+              <div className="p-3 border border-red-500/30 bg-red-950/20 text-red-300 text-xs font-mono rounded-[2px]">
                 {error}
               </div>
             )}
 
             {/* Submit / Cancel Buttons */}
             {!showCardNotice && (
-              <div className="pt-2 flex items-center justify-end gap-2.5">
+              <div className="pt-2 flex items-center justify-end gap-2">
                 <button
                   type="button"
                   onClick={onClose}
-                  className="px-4 py-2.5 text-xs font-mono uppercase tracking-wider text-neutral-400 hover:text-white border border-[#22242b] bg-[#121318] transition-colors"
+                  className="h-9 px-4 text-xs font-mono text-[#8b909e] hover:text-[#f4f4f6] border border-[#1c1f26] bg-[#0f1117] transition-colors rounded-[2px]"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={loading}
-                  className="px-5 py-2.5 text-xs font-mono uppercase tracking-wider font-bold bg-[#d4af37] hover:bg-[#e2bd45] text-[#090a0d] transition-all disabled:opacity-50 shadow-[0_0_15px_rgba(212,175,55,0.2)]"
+                  className="h-9 px-5 text-xs font-mono bg-[#f4f4f6] hover:bg-white text-[#07080a] font-medium tracking-tight transition-colors duration-150 disabled:opacity-50 rounded-[2px]"
                 >
                   {loading
                     ? 'Processing...'
                     : isFreeCheckout
-                    ? 'Claim Free Identifier'
+                    ? 'Claim identifier'
                     : 'Pay with Cryptomus'}
                 </button>
               </div>
