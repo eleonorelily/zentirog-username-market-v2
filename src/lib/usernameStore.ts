@@ -3,7 +3,7 @@ import type { Username } from '@/types/username';
 import type { AppSettings } from '@/types/settings';
 import type { DiscountCode } from '@/types/discount';
 
-export const DEFAULT_DISCORD_LINK = 'https://discord.gg/5WC6sH2rrj';
+export const DEFAULT_DISCORD_LINK = 'https://discord.gg/xmXcTMcpVz';
 
 const TOKEN_KEY = 'zentirog_mongo_admin_token';
 const EMAIL_KEY = 'zentirog_mongo_admin_email';

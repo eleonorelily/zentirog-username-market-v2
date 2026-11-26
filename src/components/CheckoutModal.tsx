@@ -12,7 +12,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   isOpen,
   onClose,
   username,
-  discordLink = 'https://discord.gg/5WC6sH2rrj',
+  discordLink = 'https://discord.gg/xmXcTMcpVz',
 }) => {
   const [email, setEmail] = useState('');
   const [discordUsername, setDiscordUsername] = useState('');
